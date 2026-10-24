@@ -1,5 +1,6 @@
 //! What is live right now, and which activity is at the front of the Now Bar stack.
 
+pub mod api;
 pub mod basketball;
 pub mod basketball_worker;
 pub mod brief;

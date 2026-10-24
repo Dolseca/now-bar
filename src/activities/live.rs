@@ -67,7 +67,7 @@ pub fn live_key(id: &str) -> u32 {
 }
 
 /// `s` at most `n` characters: cut ones end with "…" (by characters: Turkish letters are two bytes).
-fn cut(s: &str, n: usize) -> String {
+pub(crate) fn cut(s: &str, n: usize) -> String {
     if s.chars().count() <= n {
         return s.to_string();
     }

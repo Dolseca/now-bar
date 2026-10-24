@@ -100,6 +100,15 @@ pub struct AppLimit {
     pub minutes: u32,
 }
 
+/// The user's answer to an app that asked to show notifications (the API): the name it gave
+/// and the exe it ran from (the full path), both, since a name alone can be anyone's.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApiApp {
+    pub name: String,
+    pub exe: String,
+    pub allowed: bool,
+}
+
 /// A team whose matches come to the Now Bar (ESPN team id, its display name and its league
 /// slug, which the settings window shows under the name).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
