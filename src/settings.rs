@@ -514,6 +514,24 @@ pub fn merge(base: &Settings, mine: &Settings, disk: &Settings) -> Settings {
     serde_json::from_value(Value::Object(d)).unwrap_or_else(|_| mine.clone())
 }
 
+/// What the Now Bar saves for an app's answer (a prompt, "Sustur"): the file as it is now, since
+/// the settings window may have saved after the last reload, with only the answer added.
+pub fn with_api_answer(disk: Option<Settings>, running: &Settings, answer: ApiApp) -> Settings {
+    let mut s = disk.unwrap_or_else(|| running.clone());
+    s.api_apps.push(answer);
+    s.sanitized()
+}
+
+/// The settings window's answers before it changes one: the file's (the Now Bar may have kept
+/// one since the window opened), in its working copy and in what it last saved, so its save
+/// changes only the one it touched.
+pub fn rebase_api_apps(working: &mut Settings, saved: &mut Settings, disk: Option<&Settings>) {
+    if let Some(disk) = disk {
+        working.api_apps = disk.api_apps.clone();
+        saved.api_apps = disk.api_apps.clone();
+    }
+}
+
 pub fn load() -> Settings {
     load_from(&settings_path())
 }
@@ -662,6 +680,27 @@ mod tests {
         let mine = Settings { idle_clock: false, ..Settings::default() };
         let merged = merge(&base, &mine, &disk);
         assert_eq!((merged.idle_clock, merged.api_apps.len()), (false, 1));
+    }
+
+    #[test]
+    fn an_answer_lands_on_the_file_as_it_is() {
+        // The window saved the clock off; the Now Bar hasn't reloaded it yet.
+        let disk = Settings { idle_clock: false, ..Settings::default() };
+        let ekin = ApiApp { name: "Ekin".into(), exe: r"C:\Apps\ekin.exe".into(), allowed: true };
+        let s = with_api_answer(Some(disk), &Settings::default(), ekin.clone());
+        assert_eq!((s.idle_clock, s.api_apps.clone()), (false, vec![ekin.clone()]), "the window's save stays");
+        assert_eq!(with_api_answer(None, &Settings::default(), ekin.clone()).api_apps, vec![ekin], "an unreadable file: what runs");
+    }
+
+    #[test]
+    fn the_window_edits_the_files_answers() {
+        let app = |name: &str, allowed| ApiApp { name: name.into(), exe: r"C:\Apps\a.exe".into(), allowed };
+        // The window opened with Deniz; meanwhile the Now Bar kept an answer for Ekin.
+        let (mut working, mut saved) = (Settings { api_apps: vec![app("Deniz", true)], ..Settings::default() }, Settings { api_apps: vec![app("Deniz", true)], ..Settings::default() });
+        let disk = Settings { api_apps: vec![app("Deniz", true), app("Ekin", false)], ..Settings::default() };
+        rebase_api_apps(&mut working, &mut saved, Some(&disk));
+        working.api_apps[0].allowed = false;
+        assert_eq!(merge(&saved, &working, &disk).api_apps, vec![app("Deniz", false), app("Ekin", false)], "blocking Deniz keeps Ekin's no");
     }
 
     #[test]

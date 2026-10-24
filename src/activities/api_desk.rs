@@ -26,12 +26,17 @@ struct Held {
     reply: Sender<Reply>,
 }
 
-/// A request waiting (`wait`) for a click on its item.
+/// A request waiting (`wait`) for a click on its item, until `until_ms` (its connection gives up
+/// then: an item updated with a `wait` each time mustn't pile them up).
 struct Waiter {
     key: u32,
     client_id: String,
     reply: Sender<Reply>,
+    until_ms: u64,
 }
+
+/// A waiter is let go this long after its `wait`: the connection's own clock runs a little behind.
+const WAITER_SLACK_MS: u64 = 1_000;
 
 #[derive(Default)]
 pub struct Desk {
@@ -124,7 +129,7 @@ impl Desk {
         }
         if req.wait_s > 0 && !clear && live.get(key).is_some() {
             let _ = reply.send(Reply::Shown);
-            self.waiters.push(Waiter { key, client_id: id, reply });
+            self.waiters.push(Waiter { key, client_id: id, reply, until_ms: now + req.wait_s as u64 * 1000 + WAITER_SLACK_MS });
         } else {
             let _ = reply.send(Reply::ok(ok_json(&id, None)));
         }
@@ -199,6 +204,7 @@ impl Desk {
         for key in gone {
             self.release(key, None);
         }
+        self.waiters.retain(|w| now < w.until_ms);
         self.cooldown.retain(|_, until| now < *until);
     }
 
@@ -221,6 +227,12 @@ impl Desk {
     /// The prompt's item, if one is up.
     pub fn prompt_key(&self) -> Option<u32> {
         self.prompt.as_ref().map(|p| p.key)
+    }
+
+    /// How many requests wait for a click.
+    #[cfg(test)]
+    fn waiting(&self) -> usize {
+        self.waiters.len()
     }
 
     /// To the request waiting on `key`, else to the app's `/v1/events` listener, else to its queue.
@@ -467,6 +479,25 @@ mod tests {
         desk.dismissed(key, &mut live, 8_100);
         let (_, body) = heard(&rx).unwrap();
         assert!(body.contains(r#""type":"dismissed""#), "{body}");
+    }
+
+    #[test]
+    fn waiters_whose_time_is_up_are_let_go() {
+        let (mut desk, mut live) = (Desk::default(), LiveSet::default());
+        let ok = allowed(&[ekin()]);
+        // A progress updater waiting a second on each update: its waiters don't pile up.
+        for n in 0..50u64 {
+            let (tx, _rx) = channel();
+            let mut req = crate::activities::api::parse_activity("yedek", br#"{"app":"Ekin","title":"t","wait":1,"buttons":[{"id":"stop","label":"Durdur"}]}"#).unwrap();
+            req.id = Some("yedek".into());
+            desk.take(ApiCall { caller: ekin(), what: ApiWhat::Show { req: Box::new(req), icon: None, exe_icon: None }, reply: tx }, &mut live, &ok, true, 1_000 + n * 100);
+        }
+        assert_eq!(desk.waiting(), 50);
+        desk.expire(&mut live, 3_000);
+        assert!(desk.waiting() < 50, "the first ones' time is up");
+        desk.expire(&mut live, 1_000 + 49 * 100 + 2_001);
+        assert_eq!(desk.waiting(), 0);
+        assert_eq!(live.items().len(), 1, "the activity itself stays");
     }
 
     #[test]

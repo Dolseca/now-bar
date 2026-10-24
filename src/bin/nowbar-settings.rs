@@ -956,6 +956,8 @@ fn main() -> Result<(), slint::PlatformError> {
             let key_of = |a: &settings::ApiApp| nowbar::activities::api::Caller { app: a.name.clone(), exe: a.exe.clone() }.key();
             {
                 let mut b = bridge.borrow_mut();
+                let b = &mut *b;
+                settings::rebase_api_apps(&mut b.settings, &mut b.saved, settings::try_load().as_ref());
                 if let Some(a) = b.settings.api_apps.iter_mut().find(|a| key_of(a) == id.as_str()) {
                     a.allowed = allowed;
                 }
@@ -970,7 +972,12 @@ fn main() -> Result<(), slint::PlatformError> {
         let (ui_weak, bridge, schedule_save) = (ui.as_weak(), bridge.clone(), schedule_save.clone());
         st.on_api_app_forget(move |id| {
             let key_of = |a: &settings::ApiApp| nowbar::activities::api::Caller { app: a.name.clone(), exe: a.exe.clone() }.key();
-            bridge.borrow_mut().settings.api_apps.retain(|a| key_of(a) != id.as_str());
+            {
+                let mut b = bridge.borrow_mut();
+                let b = &mut *b;
+                settings::rebase_api_apps(&mut b.settings, &mut b.saved, settings::try_load().as_ref());
+                b.settings.api_apps.retain(|a| key_of(a) != id.as_str());
+            }
             if let Some(ui) = ui_weak.upgrade() {
                 ui.global::<Store>().set_api_apps(model(api_rows(&bridge.borrow().settings)));
             }

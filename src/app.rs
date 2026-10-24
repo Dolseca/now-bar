@@ -2635,9 +2635,7 @@ impl App {
     /// The user's answer to an app (a prompt, "Sustur"), kept in the settings.
     fn remember_app(&mut self, a: crate::settings::ApiApp) {
         log(&format!("api: {} {} ({})", if a.allowed { "allowed" } else { "denied" }, a.name, a.exe.rsplit('\\').next().unwrap_or("")));
-        let mut s = (*settings::current()).clone();
-        s.api_apps.push(a);
-        let s = s.sanitized();
+        let s = settings::with_api_answer(settings::try_load(), &settings::current(), a);
         if let Err(e) = settings::save(&s) {
             log(&format!("settings save: {e:?}"));
         }

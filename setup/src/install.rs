@@ -126,7 +126,13 @@ pub fn set_autostart(places: &Places, exe: &Path, on: bool) -> Result<(), String
 
 /// The user's answer to "Uygulama bildirimlerini aç", in the Now Bar's settings (the rest stays).
 pub fn set_api(file: &Path, on: bool) -> Result<(), String> {
-    let mut s = nowbar::settings::load_from(file);
+    // A file there that can't be read now (half written, locked) stays as it is: the defaults
+    // must never go over the user's settings.
+    let mut s = match (file.exists(), nowbar::settings::try_load_from(file)) {
+        (false, _) => nowbar::settings::Settings::default(),
+        (true, Some(s)) => s,
+        (true, None) => return Ok(()),
+    };
     if s.api_enabled == on && file.exists() {
         return Ok(());
     }
@@ -199,5 +205,9 @@ mod tests {
         set_api(&file, false).unwrap();
         let s = nowbar::settings::load_from(&file);
         assert!(!s.api_enabled && !s.idle_clock, "only the API changes");
+        // A file that can't be read now (half written, locked) is left as it is.
+        std::fs::write(&file, "{\"idle_clock\": false, ").unwrap();
+        set_api(&file, true).unwrap();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "{\"idle_clock\": false, ", "never the defaults over the user's settings");
     }
 }
