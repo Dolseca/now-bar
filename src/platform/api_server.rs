@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::net::{Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpListener, TcpStream};
+use std::net::{Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, SocketAddrV4, SocketAddrV6, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, RecvTimeoutError};
@@ -257,14 +257,40 @@ fn serve_one(stream: &mut TcpStream, shared: &Shared) -> Reply {
         None => Reply::ok(events_json(&[])),
     };
     match rx.recv_timeout(shared.ask_wait) {
-        Ok(Reply::Shown) => match rx.recv_timeout(Duration::from_secs(wait_s as u64)) {
-            Ok(done @ Reply::Done { .. }) => done,
-            _ => ran_out(),
-        },
+        // Waits in slices, watching the client: one that gave up drops the channel, so the click
+        // goes to /v1/events instead of a closed socket.
+        Ok(Reply::Shown) => {
+            let end = Instant::now() + Duration::from_secs(wait_s as u64);
+            loop {
+                let left = end.saturating_duration_since(Instant::now());
+                if left.is_zero() || gone(stream) {
+                    break ran_out();
+                }
+                match rx.recv_timeout(left.min(Duration::from_millis(250))) {
+                    Ok(done @ Reply::Done { .. }) => break done,
+                    Ok(Reply::Shown) | Err(RecvTimeoutError::Timeout) => {}
+                    Err(RecvTimeoutError::Disconnected) => break ran_out(),
+                }
+            }
+        }
         Ok(done) => done,
         Err(RecvTimeoutError::Timeout) if client_id.is_some() => Reply::Done { status: 202, body: pending_json(), retry_after: None },
         Err(RecvTimeoutError::Timeout) => ran_out(),
         Err(RecvTimeoutError::Disconnected) => Reply::reject(Reject::Disabled),
+    }
+}
+
+/// The client closed its end (or the connection broke).
+fn gone(stream: &TcpStream) -> bool {
+    if stream.set_nonblocking(true).is_err() {
+        return true;
+    }
+    let peeked = stream.peek(&mut [0u8; 1]);
+    let _ = stream.set_nonblocking(false);
+    match peeked {
+        Ok(0) => true,
+        Ok(_) => false,
+        Err(e) => e.kind() != std::io::ErrorKind::WouldBlock,
     }
 }
 
@@ -338,18 +364,32 @@ pub fn caller_of(peer: SocketAddr, local: SocketAddr) -> Option<(u32, String)> {
 
 /// The pid owning the TCP connection whose local end is `peer` and remote end `local`.
 fn owner_pid(peer: SocketAddr, local: SocketAddr) -> Option<u32> {
-    // The table keeps ports in network order in the low 16 bits.
-    let port = |p: u32| u16::from_be(p as u16);
-    match peer {
-        SocketAddr::V4(_) => {
-            let rows = tcp_table::<MIB_TCPROW_OWNER_PID>(2)?;
-            rows.iter().find(|r| port(r.dwLocalPort) == peer.port() && port(r.dwRemotePort) == local.port()).map(|r| r.dwOwningPid)
-        }
-        SocketAddr::V6(_) => {
-            let rows = tcp_table::<MIB_TCP6ROW_OWNER_PID>(23)?;
-            rows.iter().find(|r| port(r.dwLocalPort) == peer.port() && port(r.dwRemotePort) == local.port()).map(|r| r.dwOwningPid)
-        }
+    match (peer, local) {
+        (SocketAddr::V4(peer), SocketAddr::V4(local)) => tcp_table::<MIB_TCPROW_OWNER_PID>(2)?.iter().find(|r| row_v4_is(r, peer, local)).map(|r| r.dwOwningPid),
+        (SocketAddr::V6(peer), SocketAddr::V6(local)) => tcp_table::<MIB_TCP6ROW_OWNER_PID>(23)?.iter().find(|r| row_v6_is(r, peer, local)).map(|r| r.dwOwningPid),
+        _ => None,
     }
+}
+
+/// The table keeps a port in network order in the low 16 bits.
+fn table_port(p: u32) -> u16 {
+    u16::from_be(p as u16)
+}
+
+/// Whether `r` is the client's end of the connection: all four, since all of 127/8 is loopback
+/// and two clients can share a port on different addresses.
+fn row_v4_is(r: &MIB_TCPROW_OWNER_PID, peer: SocketAddrV4, local: SocketAddrV4) -> bool {
+    let addr = |a: u32| Ipv4Addr::from(a.to_ne_bytes());
+    addr(r.dwLocalAddr) == *peer.ip() && table_port(r.dwLocalPort) == peer.port() && addr(r.dwRemoteAddr) == *local.ip() && table_port(r.dwRemotePort) == local.port()
+}
+
+fn row_v6_is(r: &MIB_TCP6ROW_OWNER_PID, peer: SocketAddrV6, local: SocketAddrV6) -> bool {
+    Ipv6Addr::from(r.ucLocalAddr) == *peer.ip()
+        && r.dwLocalScopeId == peer.scope_id()
+        && table_port(r.dwLocalPort) == peer.port()
+        && Ipv6Addr::from(r.ucRemoteAddr) == *local.ip()
+        && r.dwRemoteScopeId == local.scope_id()
+        && table_port(r.dwRemotePort) == local.port()
 }
 
 /// The connections' table with owners for an address family (2 IPv4, 23 IPv6): a count, then
@@ -501,6 +541,37 @@ mod tests {
     }
 
     #[test]
+    fn the_callers_row_matches_all_four() {
+        use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
+        let (peer, ours) = (SocketAddrV4::new(Ipv4Addr::LOCALHOST, 50_000), SocketAddrV4::new(Ipv4Addr::LOCALHOST, 20034));
+        let row = |la: [u8; 4], lp: u16, ra: [u8; 4], rp: u16| MIB_TCPROW_OWNER_PID {
+            dwState: 5,
+            dwLocalAddr: u32::from_ne_bytes(la),
+            dwLocalPort: u16::to_be(lp) as u32,
+            dwRemoteAddr: u32::from_ne_bytes(ra),
+            dwRemotePort: u16::to_be(rp) as u32,
+            dwOwningPid: 7,
+        };
+        assert!(row_v4_is(&row([127, 0, 0, 1], 50_000, [127, 0, 0, 1], 20034), peer, ours));
+        assert!(!row_v4_is(&row([127, 0, 0, 2], 50_000, [127, 0, 0, 1], 20034), peer, ours), "the same ports from another loopback address");
+        assert!(!row_v4_is(&row([127, 0, 0, 1], 50_000, [127, 0, 0, 3], 20034), peer, ours), "the same ports to another address");
+        assert!(!row_v4_is(&row([127, 0, 0, 1], 20034, [127, 0, 0, 1], 50_000), peer, ours), "our own end");
+        let (peer6, ours6) = (SocketAddrV6::new(Ipv6Addr::LOCALHOST, 50_000, 0, 0), SocketAddrV6::new(Ipv6Addr::LOCALHOST, 20034, 0, 0));
+        let row6 = |la: Ipv6Addr, ra: Ipv6Addr| MIB_TCP6ROW_OWNER_PID {
+            ucLocalAddr: la.octets(),
+            dwLocalScopeId: 0,
+            dwLocalPort: u16::to_be(50_000) as u32,
+            ucRemoteAddr: ra.octets(),
+            dwRemoteScopeId: 0,
+            dwRemotePort: u16::to_be(20034) as u32,
+            dwState: 5,
+            dwOwningPid: 7,
+        };
+        assert!(row_v6_is(&row6(Ipv6Addr::LOCALHOST, Ipv6Addr::LOCALHOST), peer6, ours6));
+        assert!(!row_v6_is(&row6("fe80::1".parse().unwrap(), Ipv6Addr::LOCALHOST), peer6, ours6), "another address, the same ports");
+    }
+
+    #[test]
     fn unknown_caller_is_forbidden() {
         let nobody = |p: u16| SocketAddr::from(([127, 0, 0, 1], p));
         assert_eq!(caller_of(nobody(1), nobody(2)), None);
@@ -552,6 +623,26 @@ mod tests {
             }
             std::thread::sleep(Duration::from_millis(20));
         }
+    }
+
+    #[test]
+    fn a_client_that_gave_up_lets_its_click_go_to_the_queue() {
+        let (s, mailbox) = server(Duration::from_secs(5));
+        let p = s.port();
+        let body = r#"{"app":"Ekin","title":"t","id":"w","wait":30}"#;
+        let mut client = TcpStream::connect(("127.0.0.1", p)).unwrap();
+        client.write_all(format!("POST /v1/notify HTTP/1.1\r\nHost: 127.0.0.1:{p}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes()).unwrap();
+        let call = loop {
+            if let Some(c) = mailbox.lock().unwrap().pop() {
+                break c;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        call.reply.send(Reply::Shown).unwrap();
+        // Its own timeout ran out before the wait did.
+        drop(client);
+        std::thread::sleep(Duration::from_millis(800));
+        assert!(call.reply.send(Reply::ok("{}".into())).is_err(), "nobody listens any more: the click goes to /v1/events");
     }
 
     #[test]
