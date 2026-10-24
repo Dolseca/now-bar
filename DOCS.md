@@ -69,7 +69,9 @@ Every request:
 - goes to the address above, with a `Host` of `127.0.0.1`, `localhost` or `[::1]` and the port
   (any HTTP client does this);
 - with a body, sends it as JSON: `Content-Type: application/json`, UTF-8, with a `Content-Length`
-  or `Transfer-Encoding: chunked`, at most 96 KB, all of it within 5 seconds;
+  or `Transfer-Encoding: chunked`, at most 96 KB, all of it within 5 seconds (curl on Windows
+  sends `-d "…"` in the system's code page, not UTF-8: with letters beyond English, put the JSON in
+  a UTF-8 file and send `--data-binary @body.json`);
 - is one request per connection (`Connection: close`).
 
 Unknown fields are ignored. Text that is too long is cut with "…".
