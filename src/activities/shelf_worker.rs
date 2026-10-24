@@ -47,7 +47,7 @@ pub fn thumbnail_wh(path: &Path, w: u32, h: u32) -> Option<Crest> {
 }
 
 /// The bitmap's top-down BGRA pixels and size.
-unsafe fn bitmap_pixels(bitmap: HBITMAP) -> Option<(Vec<u8>, u32, u32)> {
+pub(crate) unsafe fn bitmap_pixels(bitmap: HBITMAP) -> Option<(Vec<u8>, u32, u32)> {
     let mut info = BITMAP::default();
     if unsafe { GetObjectW(bitmap.into(), std::mem::size_of::<BITMAP>() as i32, Some(&mut info as *mut _ as *mut _)) } == 0 {
         return None;
