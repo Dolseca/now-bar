@@ -15,6 +15,10 @@ if (-not $repo) {
     if ($Profile -eq 'release') { throw 'REPO in src\update.rs is empty: name the GitHub repository ("owner/name") before a release.' }
     Write-Warning 'REPO in src\update.rs is empty: fine for trying the layout, not for a release.'
 }
+# The source paths in panic messages, remapped out of the user's profile (see make-setup.ps1).
+$cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE '.cargo' }
+Remove-Item Env:RUSTFLAGS -ErrorAction SilentlyContinue
+$env:CARGO_ENCODED_RUSTFLAGS = @("--remap-path-prefix=$cargoHome=cargo", "--remap-path-prefix=$root=.") -join [char]0x1f
 cargo build --profile $Profile --bin nowbar --bin nowbar-settings
 if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
 # .cargo\config.toml keeps the build out of this (deep) folder.
