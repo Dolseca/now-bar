@@ -3093,3 +3093,11 @@ msgstr "Blocked"
 #: ui/pages.slint
 msgid "Açıkken, izin verdiğin uygulamalar pilde bildirim gösterebilir. Hangi uygulamalara izin verdiğin ve gösterdikleri senin sorumluluğunda; Now Bar yalnızca gösterir."
 msgstr "While it's on, the apps you allow can show notifications in the pill. Which apps you allow, and what they show, is your responsibility; the Now Bar only shows it."
+
+#: setup/ui/setup.slint
+msgid "Uygulama bildirimlerini aç"
+msgstr "Turn on app notifications"
+
+#: setup/ui/setup.slint
+msgid "İzin verdiğin uygulamalar ve gösterdikleri senin sorumluluğunda"
+msgstr "The apps you allow, and what they show, are your responsibility"

@@ -15,6 +15,8 @@ pub struct Options {
     pub autostart: bool,
     pub claude: bool,
     pub desktop: bool,
+    /// Other apps' notifications (the API); `None` leaves the setting as it is (`--quiet`).
+    pub api: Option<bool>,
     /// Start the Now Bar at the end (not in the sandbox, not with `--no-launch`).
     pub launch: bool,
 }
@@ -75,6 +77,9 @@ pub fn run(places: &Places, opts: &Options, payload: &[u8], version: &str, progr
 
     progress(tr("Windows'la başlatma"), 0.78);
     set_autostart(places, &exe, opts.autostart)?;
+    if let Some(on) = opts.api {
+        set_api(&places.roaming.join("settings.json"), on)?;
+    }
 
     if let Some(path) = &places.claude {
         progress("Claude Code", 0.86);
@@ -117,6 +122,16 @@ pub fn set_autostart(places: &Places, exe: &Path, on: bool) -> Result<(), String
         nowbar::settings::save_to(&file, &s).map_err(|e| trf("Ayarlar yazılamadı: {}", &[&e]))?;
     }
     nowbar::platform::autostart::set_autostart_for(&places.run_name, exe, on).map_err(|e| trf("Windows'la başlatma ayarlanamadı: {}", &[&e]))
+}
+
+/// The user's answer to "Uygulama bildirimlerini aç", in the Now Bar's settings (the rest stays).
+pub fn set_api(file: &Path, on: bool) -> Result<(), String> {
+    let mut s = nowbar::settings::load_from(file);
+    if s.api_enabled == on && file.exists() {
+        return Ok(());
+    }
+    s.api_enabled = on;
+    nowbar::settings::save_to(file, &s).map_err(|e| trf("Ayarlar yazılamadı: {}", &[&e]))
 }
 
 /// Renames along `place_steps`; on a failure the done ones are undone and the error says so.
@@ -165,4 +180,24 @@ fn folder_kb(dir: &Path) -> u32 {
 fn today() -> String {
     let t = unsafe { windows::Win32::System::SystemInformation::GetLocalTime() };
     format!("{:04}{:02}{:02}", t.wYear, t.wMonth, t.wDay)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_api_choice_lands_in_the_settings_and_keeps_the_rest() {
+        let dir = std::env::temp_dir().join(format!("nowbar-setup-api-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let file = dir.join("settings.json");
+        set_api(&file, true).unwrap();
+        assert!(nowbar::settings::load_from(&file).api_enabled, "a first install writes it");
+        let mut s = nowbar::settings::load_from(&file);
+        s.idle_clock = false;
+        nowbar::settings::save_to(&file, &s).unwrap();
+        set_api(&file, false).unwrap();
+        let s = nowbar::settings::load_from(&file);
+        assert!(!s.api_enabled && !s.idle_clock, "only the API changes");
+    }
 }

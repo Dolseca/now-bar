@@ -10,13 +10,14 @@ import { Icon, Toggle } from "../../ui/kit.slint";
 // For Rust: the system's fonts go into it (Windows 10 has other ones).
 export { Theme }
 
-/// A choice: its label and the yellow toggle at the right.
+/// A choice: its label (and a quieter line under it) and the yellow toggle at the right.
 component Choice inherits Rectangle {
     in property <string> label;
+    in property <string> hint;
     in property <bool> enabled: true;
     in-out property <bool> checked;
-    height: 40px;
-    Text {
+    height: root.hint != "" ? 56px : 40px;
+    if root.hint == "": Text {
         x: 0;
         width: parent.width - 50px;
         text: root.label;
@@ -24,6 +25,24 @@ component Choice inherits Rectangle {
         color: Theme.text;
         vertical-alignment: center;
         overflow: elide;
+    }
+    if root.hint != "": VerticalLayout {
+        x: 0;
+        width: parent.width - 50px;
+        alignment: center;
+        spacing: 2px;
+        Text {
+            text: root.label;
+            font-size: 13.5px;
+            color: Theme.text;
+            overflow: elide;
+        }
+        Text {
+            text: root.hint;
+            font-size: 12px;
+            color: Theme.text2;
+            wrap: word-wrap;
+        }
     }
     Toggle {
         x: parent.width - self.width;
@@ -201,6 +220,8 @@ export component SetupWindow inherits Window {
     in property <string> primary: @tr("Kur");
     in-out property <bool> autostart: true;
     in-out property <bool> claude: true;
+    /// Other apps' notifications (the API): off unless the user turns it on.
+    in-out property <bool> api: false;
     in-out property <bool> desktop: true;
     in-out property <bool> open-settings: true;
     in-out property <bool> wipe: false;
@@ -230,7 +251,7 @@ export component SetupWindow inherits Window {
     title: mode == "uninstall" ? @tr("Now Bar'ı kaldır") : @tr("Now Bar kurulumu");
     icon: @image-url("../../assets/nowbar-256.png");
     width: 700px;
-    height: 440px;
+    height: 496px;
     no-frame: !root.framed;
     background: Theme.ground;
     default-font-family: "Inter";
@@ -346,6 +367,12 @@ export component SetupWindow inherits Window {
         opacity: root.busy ? 0.45 : 1;
         if root.mode == "install": Choice { label: @tr("Windows'la başlat"); enabled: !root.busy; checked <=> root.autostart; }
         if root.mode == "install" && root.claude-available: Choice { label: @tr("Claude Code'a bağlan"); enabled: !root.busy; checked <=> root.claude; }
+        if root.mode == "install": Choice {
+            label: @tr("Uygulama bildirimlerini aç");
+            hint: @tr("İzin verdiğin uygulamalar ve gösterdikleri senin sorumluluğunda");
+            enabled: !root.busy;
+            checked <=> root.api;
+        }
         if root.mode == "install": Choice { label: @tr("Masaüstü kısayolu"); enabled: !root.busy; checked <=> root.desktop; }
         if root.mode == "install": Choice { label: @tr("Bitince ayarları aç"); enabled: !root.busy; checked <=> root.open-settings; }
         if root.mode == "uninstall": Choice { label: @tr("Ayarlarımı da sil"); enabled: !root.busy; checked <=> root.wipe; }
@@ -393,7 +420,8 @@ export component SetupWindow inherits Window {
     // Where it goes.
     if root.location-visible && root.mode == "install" && (root.phase == "ready" || root.phase == "working"): HorizontalLayout {
         x: root.col-x;
-        y: 349px;
+        // 91 px over the bottom, as before the window grew.
+        y: root.height - 91px;
         width: root.col-w;
         height: 18px;
         spacing: 8px;

@@ -34,7 +34,7 @@ slint::include_modules!();
 
 static PAYLOAD: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/payload.bin"));
 const VERSION: &str = nowbar::platform::updater::VERSION;
-const SIZE: (f32, f32) = (700.0, 440.0);
+const SIZE: (f32, f32) = (700.0, 496.0);
 /// payload.rs's DAMAGED (the build script shares that file, so it can't reach i18n): marked here,
 /// and shown through tr like the other step messages.
 const _DAMAGED: &str = nowbar::i18n::n_("Kurulum dosyası bozuk; yeniden indir.");
@@ -76,7 +76,8 @@ fn main() {
         let ok = if uninstalling {
             uninstall::run(&places, false, |_, _| {}).is_ok()
         } else {
-            let opts = Options { autostart: true, claude: places.claude.is_some(), desktop: false, launch };
+            // The API as it was (off on a first install): nobody was asked.
+            let opts = Options { autostart: true, claude: places.claude.is_some(), desktop: false, api: None, launch };
             install::run(&places, &opts, PAYLOAD, VERSION, |_, _| {}).is_ok()
         };
         if from.is_some() {
@@ -128,6 +129,7 @@ fn describe(ui: &SetupWindow, places: &Places, uninstalling: bool) {
         ui.set_autostart(nowbar::platform::autostart::run_value(&places.run_name).is_some_and(|v| nowbar::platform::autostart::points_at(&v, &exe)));
         ui.set_desktop(places.desktop.join("Now Bar.lnk").exists());
         ui.set_claude(places.claude.as_deref().is_some_and(has_our_hooks));
+        ui.set_api(nowbar::settings::load_from(&places.roaming.join("settings.json")).api_enabled);
         ui.set_open_settings(false);
     }
 }
@@ -233,7 +235,7 @@ fn start(ui: &SetupWindow, places: Places, uninstalling: bool, launch: bool) {
     ui.set_progress(0.0);
     ui.set_step(tr("Hazırlanıyor").into());
     let weak = ui.as_weak();
-    let opts = Options { autostart: ui.get_autostart(), claude: ui.get_claude() && places.claude.is_some(), desktop: ui.get_desktop(), launch };
+    let opts = Options { autostart: ui.get_autostart(), claude: ui.get_claude() && places.claude.is_some(), desktop: ui.get_desktop(), api: Some(ui.get_api()), launch };
     let wipe = ui.get_wipe();
     std::thread::spawn(move || {
         unsafe {
