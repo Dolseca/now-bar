@@ -196,10 +196,11 @@ pub fn parse_head(bytes: &[u8]) -> Result<Head, Reject> {
 }
 
 /// Turns away what a web page could send: browsers say where a request comes from (`Origin`,
-/// `Sec-Fetch-*`, even for an `<img>`), can't send JSON without a preflight that never gets CORS
-/// headers here, and a page on a rebinding name has its own `Host`.
+/// `Sec-Fetch-Site` and `-Dest`, even for an `<img>`), can't send JSON without a preflight that
+/// never gets CORS headers here, and a page on a rebinding name has its own `Host`. Node's own
+/// fetch sends `Sec-Fetch-Mode` alone: an app, let through.
 pub fn screen(head: &Head, port: u16) -> Result<(), Reject> {
-    if head.header("Origin").is_some() || head.headers.iter().any(|(k, _)| k.to_ascii_lowercase().starts_with("sec-fetch-")) {
+    if ["Origin", "Sec-Fetch-Site", "Sec-Fetch-Dest"].iter().any(|h| head.header(h).is_some()) {
         return Err(Reject::Forbidden);
     }
     let host = head.header("Host").ok_or(Reject::Forbidden)?.to_ascii_lowercase();
@@ -762,7 +763,10 @@ mod tests {
         assert_eq!(screen(&with("Origin: https://ornek.test\r\n"), 20034), Err(Reject::Forbidden));
         assert_eq!(screen(&with("Origin: null\r\n"), 20034), Err(Reject::Forbidden));
         assert_eq!(screen(&with("Sec-Fetch-Site: cross-site\r\n"), 20034), Err(Reject::Forbidden));
-        assert_eq!(screen(&with("sec-fetch-mode: no-cors\r\n"), 20034), Err(Reject::Forbidden));
+        assert_eq!(screen(&with("sec-fetch-dest: image\r\n"), 20034), Err(Reject::Forbidden));
+        // Node's own fetch (v25, as it sent them): a mode, but no site, dest or origin.
+        let node = "connection: keep-alive\r\naccept: */*\r\naccept-language: *\r\nsec-fetch-mode: cors\r\nuser-agent: node\r\naccept-encoding: gzip, deflate\r\ncontent-length: 2\r\n";
+        assert_eq!(screen(&with(node), 20034), Ok(()), "an app on Node isn't a browser");
         let host = |h: &str| screen(&head(&format!("GET /v1 HTTP/1.1\r\nHost: {h}\r\n\r\n")), 20034);
         for ok in ["127.0.0.1:20034", "localhost:20034", "LOCALHOST:20034", "[::1]:20034"] {
             assert_eq!(host(ok), Ok(()), "{ok}");

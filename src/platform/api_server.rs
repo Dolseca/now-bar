@@ -508,6 +508,30 @@ mod tests {
         held.join().unwrap();
     }
 
+    /// Dev: a server for real clients (DOCS.md's examples) for a minute, every app allowed, on
+    /// the port written to `%TEMP%\nowbar-api-probe.port`; each request's caller is printed.
+    /// `cargo test --profile quick --lib live_api_clients -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn live_api_clients() {
+        let (s, mailbox) = server(Duration::from_secs(20));
+        std::fs::write(std::env::temp_dir().join("nowbar-api-probe.port"), s.port().to_string()).unwrap();
+        let end = std::time::Instant::now() + Duration::from_secs(60);
+        while std::time::Instant::now() < end {
+            for call in mailbox.lock().map(|mut m| std::mem::take(&mut *m)).unwrap_or_default() {
+                let reply = match &call.what {
+                    ApiWhat::Show { req, .. } => {
+                        println!("{} ({}) {:?} {:?}", call.caller.app, call.caller.exe, req.id, req.title);
+                        Reply::ok(crate::activities::api::ok_json(req.id.as_deref().unwrap_or(""), None))
+                    }
+                    ApiWhat::Events { .. } => Reply::ok(crate::activities::api::events_json(&[])),
+                };
+                let _ = call.reply.send(reply);
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
     #[test]
     fn stop_closes_the_port() {
         let (s, _) = server(Duration::from_secs(1));
