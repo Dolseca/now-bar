@@ -76,6 +76,8 @@ bir klasör seçilebilir). Kurulum ekranındaki seçenekler:
 
 - **Windows'la başlat**
 - **Claude Code'a bağlan** (bilgisayarda Claude Code varsa görünür)
+- **Uygulama bildirimlerini aç** (kapalı gelir; başka uygulamaların pilde bildirim göstermesi,
+  [aşağıda](#canlı-etkinlikler); izin verdiğin uygulamalar ve gösterdikleri senin sorumluluğunda)
 - **Masaüstü kısayolu**
 - **Bitince ayarları aç**
 
@@ -88,7 +90,7 @@ ayarların silinmesi isteğe bağlıdır.
 Now Bar kuruluyken setup'ı yeniden çalıştırmak onu günceller ya da onarır: çalışan Now Bar
 kapatılır, dosyaları değiştirilir, yeniden başlatılır.
 
-Sessiz kurulum için `nowbar-setup.exe --quiet`, sessiz kaldırma için
+Sessiz kurulum için `nowbar-setup.exe --quiet` (uygulama bildirimlerine dokunmaz), sessiz kaldırma için
 `"%LOCALAPPDATA%\Programs\NowBar\nowbar-setup.exe" --uninstall --quiet` kullanılır.
 
 ## Kullanım
@@ -114,6 +116,18 @@ nowbar.exe push --id yedek --title "Yedekleme" --state done
 `--state`: `run` (varsayılan), `wait` (kullanıcıyı bekliyor: bir an öne gelir), `done` (5 saniye
 "Bitti"), `clear` (hemen kalkar). Bir saat mesaj gelmeyen etkinlik kendiliğinden kalkar. Ayarlar →
 Sistem → Canlı etkinlikler kapatır.
+
+**Uygulamalar için API:** başka uygulamalar tek bir HTTP isteğiyle pilde bildirim ve canlı etkinlik
+gösterebilir: kendi ikonları, renkleri ve iki düğmeye kadar. Yalnızca bu bilgisayardan
+(`127.0.0.1:20034`) erişilir ve kullanıcı açana kadar kapalıdır (kurulumda **Uygulama bildirimlerini
+aç**, ya da Ayarlar → Sistem → Uygulama bildirimleri). Bir uygulamanın ilk isteğinde pil
+"Bildirim göstermek istiyor" diye sorar; cevap hatırlanır ve ayarlardan değişir. İzin verilen
+uygulamalar ve gösterdikleri kullanıcının sorumluluğundadır; Now Bar yalnızca gösterir.
+Geliştiriciler için: [DOCS.md](DOCS.md).
+
+```
+curl -H "Content-Type: application/json" -d "{\"app\":\"Yedekleyici\",\"title\":\"Yedek bitti\"}" http://127.0.0.1:20034/v1/notify
+```
 
 **Claude Code:** kurulumdaki **Claude Code'a bağlan** hook'ları kurar; elle kurmak ya da kaldırmak
 için (exe'nin kendi yolunu yazar, önce `settings.json.before-nowbar` yedeğini, sonraki her yazışta
@@ -200,6 +214,11 @@ Now Bar'ın konuştuğu yerler, hepsi anahtarsız:
 - **Maçlar:** takip edilen takımlar için ESPN (`site.api.espn.com`) ve EuroLeague/EuroCup
   (`feeds.incrowdsports.com`, `live.euroleague.net`); armalar bu kaynakların görsel adreslerinden.
 - **Güncelleme:** GitHub (`api.github.com`), yukarıda.
+
+Dinlenen port: **Uygulama bildirimleri** açıksa yalnızca bu bilgisayardan `127.0.0.1:20034` (ve
+`[::1]`; port doluysa Windows'un verdiği, `%LOCALAPPDATA%\NowBar\api.json`'da yazar). Kapalıyken
+hiçbir port açılmaz. Web sayfalarından, ağdan ve bu bilgisayardaki başka Windows kullanıcılarından
+gelen istekler reddedilir; ayrıntılar [DOCS.md](DOCS.md)'de.
 
 İzlenen klasörler: ShareX'in ekran görüntüsü klasörü ve Windows'un `Resimler\Screenshots`'ı (yeni
 bir görüntü pilde bir an görünür ve rafa eklenir; Ayarlar → Sistem → Ekran görüntüleri). Claude
