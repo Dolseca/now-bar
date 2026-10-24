@@ -81,7 +81,7 @@ then leaves by itself. A click on one of its buttons answers it and it goes.
 
 | Field | | |
 |---|---|---|
-| `app` | required | Your app's name as the user sees it, 1–32 characters. Names that would pass for Windows, the Now Bar or Claude are refused (`400`, `detail: "app"`): once only letters and digits are kept, they may not contain `nowbar`, `windows`, `microsoft`, `defender`, `claude`, `anthropic` or `samsung`, in any case. |
+| `app` | required | Your app's name as the user sees it, 1–32 characters. Names that would pass for Windows, the Now Bar or Claude are refused (`400`, `detail: "app"`): once only letters and digits are kept, they may not contain `nowbar`, `windows`, `microsoft`, `defender`, `claude`, `anthropic` or `samsung`, in any case. Invisible or direction characters, spaces other than a plain one, `·` and `•` are refused too. |
 | `title` | required | Up to 40 characters. |
 | `text` | | Up to 120 characters: a line in the pill, up to three on the card. |
 | `id` | | Your id for it, 1–40 of `A–Z a–z 0–9 . _ -`. A notification with the same id replaces it. Without one, the Now Bar gives it one (in the answer). |
