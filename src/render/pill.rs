@@ -859,16 +859,24 @@ impl PillVisual {
 
 /// Sizes the waveform bars for `levels` (0..1), centred on the pill's height.
 fn place_bars(layer: &Layer, levels: [f32; 3], h: f32, s: &Scale) -> Result<()> {
-    let d = |v: f32| v * s.0;
-    let bar = d(WAVE_BAR_DIP).round().max(2.0);
-    for (i, (geo, level)) in layer.bar_geos.iter().zip(levels).enumerate() {
-        let bh = (d(WAVE_MIN_DIP) + level.clamp(0.0, 1.0) * d(WAVE_MAX_DIP - WAVE_MIN_DIP)).round();
-        let x = (d(WAVE_X_DIP) + i as f32 * (bar + d(WAVE_GAP_DIP))).round();
-        geo.SetOffset(Vector2 { X: x, Y: ((h - bh) / 2.0).round() })?;
-        geo.SetSize(Vector2 { X: bar, Y: bh })?;
+    for (geo, r) in layer.bar_geos.iter().zip(bar_rects(levels, h, s)) {
+        let bar = r.right - r.left;
+        geo.SetOffset(Vector2 { X: r.left, Y: r.top })?;
+        geo.SetSize(Vector2 { X: bar, Y: r.bottom - r.top })?;
         geo.SetCornerRadius(Vector2 { X: bar / 2.0, Y: bar / 2.0 })?;
     }
     Ok(())
+}
+
+/// The waveform bars at `levels` (0..1), centred on the pill's height, in pixels.
+fn bar_rects(levels: [f32; 3], h: f32, s: &Scale) -> [D2D_RECT_F; 3] {
+    let d = |v: f32| v * s.0;
+    let bar = d(WAVE_BAR_DIP).round().max(2.0);
+    std::array::from_fn(|i| {
+        let bh = (d(WAVE_MIN_DIP) + levels[i].clamp(0.0, 1.0) * d(WAVE_MAX_DIP - WAVE_MIN_DIP)).round();
+        let x = (d(WAVE_X_DIP) + i as f32 * (bar + d(WAVE_GAP_DIP))).round();
+        rect(x, ((h - bh) / 2.0).round(), bar, bh)
+    })
 }
 
 /// A delay in ticks (zero stays zero: the speed setting scales real delays only).
@@ -1675,9 +1683,7 @@ fn paint_media(ink: &Ink, m: &MediaSnapshot, w: f32, h: f32, s: &Scale) -> Resul
 /// Title and " · artist" on one line, in its own surface so it can scroll.
 fn paint_marquee(g: &Gfx, c: &Compositor, layer: &mut Layer, m: &MediaSnapshot, s: &Scale, w: f32, h: f32) -> Result<()> {
     let d = |v: f32| v * s.0;
-    let title = TextStyle::new(Face::Text, Weight::SemiBold, d(12.5), white(1.0));
-    let artist = TextStyle::new(Face::Text, Weight::Regular, d(12.5), white(0.7));
-    let suffix = if m.artist.is_empty() || !crate::settings::current().media_pill_artist { String::new() } else { format!(" · {}", m.artist) };
+    let (title, artist, suffix) = marquee_text(m, s);
     // Measure with a throwaway paint of the right height, then paint at the exact width.
     let mut widths = (0.0f32, 0.0f32);
     paint_surface(g, &layer.marquee_surface, 1, 1, |ink| {
@@ -1707,6 +1713,36 @@ fn paint_marquee(g: &Gfx, c: &Compositor, layer: &mut Layer, m: &MediaSnapshot, 
     mask.ColorStops()?.Append(&c.CreateColorGradientStopWithOffsetAndColor(1.0, color(if text_w > visible { 0 } else { 255 }, (255, 255, 255)))?)?;
     layer.marquee_mask.SetMask(&mask)?;
     layer.overflow = (text_w > visible).then_some((text_w - visible + d(MARQUEE_FADE_DIP), visible));
+    Ok(())
+}
+
+/// The title's style, the artist's, and " · artist" (empty when unknown or turned off).
+fn marquee_text(m: &MediaSnapshot, s: &Scale) -> (TextStyle, TextStyle, String) {
+    let d = |v: f32| v * s.0;
+    let suffix = if m.artist.is_empty() || !crate::settings::current().media_pill_artist { String::new() } else { format!(" · {}", m.artist) };
+    (TextStyle::new(Face::Text, Weight::SemiBold, d(12.5), white(1.0)), TextStyle::new(Face::Text, Weight::Regular, d(12.5), white(0.7)), suffix)
+}
+
+/// The media pill as one still picture: its content, the waveform bars at `levels` and the
+/// title line, cut where the buttons start. For the sheets: the pill moves the bars and the
+/// title in visuals of their own.
+pub fn paint_media_still(ink: &Ink, m: &MediaSnapshot, levels: [f32; 3], w: f32, h: f32, s: &Scale) -> Result<()> {
+    paint_media(ink, m, w, h, s)?;
+    if crate::settings::current().media_waveform {
+        for r in bar_rects(levels, h, s) {
+            ink.rrect(r, (r.right - r.left) / 2.0, white(235.0 / 255.0))?;
+        }
+    }
+    let (title, artist, suffix) = marquee_text(m, s);
+    let widths = (ink.measure(&m.title, &title)?, if suffix.is_empty() { 0.0 } else { ink.measure(&suffix, &artist)? });
+    let x = (media_text_x_dip() * s.0).round();
+    let visible = (w - media_text_right_dip() * s.0 - x).max(1.0);
+    unsafe { ink.dc.PushAxisAlignedClip(&rect(x, 0.0, visible, h), windows::Win32::Graphics::Direct2D::D2D1_ANTIALIAS_MODE_ALIASED) };
+    ink.text(&m.title, rect(x, 0.0, widths.0 + 2.0, h), &title)?;
+    if !suffix.is_empty() {
+        ink.text(&suffix, rect(x + widths.0, 0.0, widths.1 + 2.0, h), &artist)?;
+    }
+    unsafe { ink.dc.PopAxisAlignedClip() };
     Ok(())
 }
 
