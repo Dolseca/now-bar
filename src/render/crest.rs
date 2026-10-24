@@ -13,7 +13,7 @@ use windows::Win32::Graphics::Imaging::{
 use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
 
 /// A crest (square) or a cover (any shape) as premultiplied BGRA.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Crest {
     pub px: Arc<Vec<u8>>,
     pub size: (u32, u32),

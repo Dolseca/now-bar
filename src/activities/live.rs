@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::i18n::{tr, trf};
 
+use crate::activities::api::Button;
 use crate::activities::claude::{ask_detail, error_text, file_of, step_label, step_of, summary_of, task_change, Ask, Call, ClaudeInfo, ClaudeNote};
+use crate::render::crest::Crest;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -29,6 +31,48 @@ pub struct LiveMsg {
     /// Claude Code's details (the step, the tasks, the ask); none for `push`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub claude: Option<ClaudeNote>,
+    /// An app's, through the API (never over WM_COPYDATA).
+    #[serde(skip)]
+    pub app: Option<Box<AppMeta>>,
+}
+
+/// How an app's item shows its icon.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AppIcon {
+    Glyph(char),
+    /// The picture as decoded (128 px); `id` tells pictures apart for the painters' cache.
+    Image { id: u64, src: Crest },
+}
+
+/// What the API adds to an item: who sent it and how it looks.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AppMeta {
+    /// The caller's key (`api::Caller::key`): the app the user allowed, or is asked about.
+    pub owner: String,
+    pub name: String,
+    /// The exe's full path.
+    pub exe: String,
+    /// The app's own id for the item, as its events say it.
+    pub client_id: String,
+    pub icon: Option<AppIcon>,
+    pub accent: Option<(u8, u8, u8)>,
+    pub buttons: Vec<Button>,
+    /// A permission prompt, not something the app sent.
+    pub prompt: bool,
+    /// A notification's or a prompt's time on screen, from each message.
+    pub life_ms: Option<u64>,
+}
+
+impl AppMeta {
+    /// "Ekin · ekin.exe": the name it gave and where it really runs from.
+    pub fn sender(&self) -> String {
+        format!("{} · {}", self.name, self.exe.rsplit(['\\', '/']).next().unwrap_or(&self.exe))
+    }
+}
+
+/// Whether `push` (and anything over WM_COPYDATA) may use `id`: the API's ids are the apps'.
+pub fn push_id_ok(id: &str) -> bool {
+    !id.starts_with("app:") && !id.starts_with("ask:")
 }
 
 /// `push`'s flags (the arguments after `push`); `None` when a flag is unknown, a value is
@@ -47,7 +91,7 @@ pub fn parse_push(args: &[String]) -> Option<LiveMsg> {
             _ => return None,
         }
     }
-    Some(LiveMsg { id: id?, title: title?, text, progress, state, claude: None })
+    Some(LiveMsg { id: id?, title: title?, text, progress, state, claude: None, app: None })
 }
 
 /// A wait is a moment (ahead of the user's pick) this long, then it stays ahead of the music.
@@ -95,6 +139,10 @@ pub struct LiveItem {
     pub info: ClaudeInfo,
     /// When the current ask arrived.
     pub asked_ms: u64,
+    /// Sent by an app through the API.
+    pub app: Option<Box<AppMeta>>,
+    /// A notification's or a prompt's end (GetTickCount64 ms).
+    pub until_ms: Option<u64>,
 }
 
 const ASK_SETTLE_MS: u64 = 500;
@@ -108,12 +156,20 @@ impl LiveSet {
     pub fn apply(&mut self, m: LiveMsg, now_ms: u64) {
         let id = cut(&m.id, 64);
         let key = live_key(&id);
+        // Another id on the same 32-bit key: the item stays its sender's.
+        if self.items.iter().any(|i| i.key == key && i.id != id) {
+            return;
+        }
         if m.state == LiveState::Clear {
             self.remove(key);
             return;
         }
         let (title, text) = (cut(&m.title, 40), cut(&m.text, 120));
+        let until_ms = m.app.as_ref().and_then(|a| a.life_ms).map(|life| now_ms + life);
         if let Some(i) = self.items.iter_mut().find(|i| i.key == key) {
+            if m.app.is_some() {
+                (i.app, i.until_ms) = (m.app.clone(), until_ms);
+            }
             let old_ask = i.info.ask.as_ref().map(|a| a.id.clone());
             if let Some(n) = &m.claude {
                 if n.new_prompt {
@@ -139,6 +195,15 @@ impl LiveSet {
             }
             return;
         }
+        // One app can't fill the stack: its own quietest makes room.
+        if let Some(owner) = m.app.as_ref().map(|a| a.owner.as_str()) {
+            let mine = self.items.iter().filter(|i| i.app.as_ref().is_some_and(|a| a.owner == owner));
+            if mine.clone().count() >= crate::activities::api::PER_APP_MAX {
+                if let Some(quietest) = mine.min_by_key(|i| i.seen_ms).map(|i| i.key) {
+                    self.remove(quietest);
+                }
+            }
+        }
         if self.items.len() >= LIVE_MAX {
             if let Some(quietest) = self.items.iter().min_by_key(|i| i.seen_ms).map(|i| i.key) {
                 self.remove(quietest);
@@ -162,17 +227,20 @@ impl LiveSet {
             seen_ms: now_ms,
             info,
             asked_ms: now_ms,
+            app: m.app,
+            until_ms,
         });
     }
 
     /// The first ms `i` is gone (GetTickCount64): done when the stack drops it (age 5 s, as
     /// `rank`), stale once a full quiet period has passed.
     fn gone_at(i: &LiveItem) -> u64 {
-        match i.state {
+        let stale = match i.state {
             LiveState::Done => i.changed_ms + LIVE_DONE_MS,
             LiveState::Run | LiveState::Wait if i.claude => i.seen_ms + LIVE_CLAUDE_STALE_MS + 1,
             _ => i.seen_ms + LIVE_STALE_MS + 1,
-        }
+        };
+        i.until_ms.map_or(stale, |until| until.min(stale))
     }
 
     /// Drops what is over or stale (but not `open`, the item whose card is open: its answer is
@@ -183,14 +251,20 @@ impl LiveSet {
         self.items.len() != before
     }
 
-    /// In how many ms a moment ends: a wait's 4 s in front, a done item's 5 s (the tick's job).
+    /// In how many ms a moment ends: a wait's 4 s in front, a done item's 5 s, a notification's
+    /// time (the tick's job).
     pub fn moment_in(&self, now_ms: u64) -> Option<u64> {
         let end = |i: &LiveItem| match i.state {
             LiveState::Wait => Some(i.changed_ms + LIVE_WAIT_URGENT_MS),
             LiveState::Done => Some(Self::gone_at(i)),
             LiveState::Run | LiveState::Clear => None,
         };
-        Self::soonest(self.items.iter().filter_map(end), now_ms)
+        Self::soonest(self.items.iter().flat_map(|i| [end(i), i.until_ms]).flatten(), now_ms)
+    }
+
+    /// The keys of one app's items (`owner`: its caller's key).
+    pub fn owned_by(&self, owner: &str) -> Vec<u32> {
+        self.items.iter().filter(|i| i.app.as_ref().is_some_and(|a| a.owner == owner)).map(|i| i.key).collect()
     }
 
     /// In how many ms a quiet item leaves (minutes away: a long timer's job, not the tick's).
@@ -310,7 +384,7 @@ pub fn claude_msg(hook: &serde_json::Value) -> Option<LiveMsg> {
     let folder = hook["cwd"].as_str().unwrap_or("").split(['\\', '/']).rfind(|p| !p.is_empty());
     let title = folder.unwrap_or("Claude").to_string();
     let claude = (note != ClaudeNote { agent: note.agent.clone(), ..Default::default() }).then_some(note);
-    Some(LiveMsg { id: format!("claude:{session}"), title, text, progress: None, state, claude })
+    Some(LiveMsg { id: format!("claude:{session}"), title, text, progress: None, state, claude, app: None })
 }
 
 /// The pill's right side: the time this run has taken (or its progress), what it waits for, or
@@ -341,7 +415,79 @@ mod tests {
     use super::*;
 
     fn msg(id: &str, state: LiveState) -> LiveMsg {
-        LiveMsg { id: id.into(), title: "now-bar".into(), text: String::new(), progress: None, state, claude: None }
+        LiveMsg { id: id.into(), title: "now-bar".into(), text: String::new(), progress: None, state, claude: None, app: None }
+    }
+
+    /// An app's item (`owner` stands for its caller's key) living `life` ms, if a notification.
+    fn app_msg(owner: &str, id: &str, life: Option<u64>) -> LiveMsg {
+        let meta = AppMeta { owner: owner.into(), name: "Ekin".into(), exe: r"C:\Apps\ekin.exe".into(), client_id: id.into(), icon: None, accent: None, buttons: Vec::new(), prompt: false, life_ms: life };
+        LiveMsg { app: Some(Box::new(meta)), ..msg(&format!("app:{owner}:{id}"), LiveState::Wait) }
+    }
+
+    #[test]
+    fn a_notification_leaves_at_its_end() {
+        let mut set = LiveSet::default();
+        set.apply(app_msg("o1", "n1", Some(5_000)), 1_000);
+        assert_eq!(set.get(live_key("app:o1:n1")).and_then(|i| i.until_ms), Some(6_000));
+        assert_eq!(set.moment_in(2_000), Some(3_000), "its wait's moment ends first");
+        assert_eq!(set.moment_in(5_500), Some(500), "then it leaves");
+        assert!(!set.expire(5_999, None));
+        assert!(set.expire(6_000, None));
+        assert!(set.items().is_empty());
+    }
+
+    #[test]
+    fn an_update_moves_the_end() {
+        let mut set = LiveSet::default();
+        set.apply(app_msg("o1", "n1", Some(5_000)), 1_000);
+        set.apply(app_msg("o1", "n1", Some(5_000)), 4_000);
+        assert_eq!(set.get(live_key("app:o1:n1")).and_then(|i| i.until_ms), Some(9_000));
+        set.apply(app_msg("o1", "a1", None), 4_000);
+        assert_eq!(set.get(live_key("app:o1:a1")).and_then(|i| i.until_ms), None, "an activity has no end of its own");
+        assert_eq!(set.get(live_key("app:o1:a1")).and_then(|i| i.app.as_ref()).map(|a| a.sender()).as_deref(), Some("Ekin · ekin.exe"));
+    }
+
+    #[test]
+    fn three_items_per_app_the_quietest_goes() {
+        let mut set = LiveSet::default();
+        for (n, at) in [("a", 10), ("b", 20), ("c", 30)] {
+            set.apply(app_msg("o1", n, None), at);
+        }
+        set.apply(app_msg("o2", "x", None), 5);
+        set.apply(app_msg("o1", "d", None), 40);
+        let ids: Vec<&str> = set.items().iter().map(|i| i.id.as_str()).collect();
+        assert!(!ids.contains(&"app:o1:a") && ids.contains(&"app:o1:d"), "{ids:?}");
+        assert!(ids.contains(&"app:o2:x"), "another app's stays, though quieter");
+        set.apply(app_msg("o1", "b", None), 50);
+        assert_eq!(set.owned_by("o1").len(), 3, "an update isn't a new item");
+    }
+
+    #[test]
+    fn push_ids_cannot_take_app_ids() {
+        assert!(push_id_ok("yedek") && push_id_ok("claude:s1"));
+        assert!(!push_id_ok("app:0123:yedek") && !push_id_ok("ask:0123"));
+    }
+
+    #[test]
+    fn owned_by_lists_one_apps_items() {
+        let mut set = LiveSet::default();
+        set.apply(app_msg("o1", "a", None), 0);
+        set.apply(app_msg("o2", "b", None), 0);
+        set.apply(msg("script", LiveState::Run), 0);
+        assert_eq!(set.owned_by("o1"), vec![live_key("app:o1:a")]);
+    }
+
+    #[test]
+    fn a_key_collision_is_refused() {
+        // Two ids on one 32-bit key: the second can't change, or clear, the first's item.
+        let mut seen = std::collections::HashMap::new();
+        let (a, b) = (0u32..).map(|n| format!("app:o1:{n}")).find_map(|id| seen.insert(live_key(&id), id.clone()).map(|old| (old, id))).unwrap();
+        let mut set = LiveSet::default();
+        set.apply(LiveMsg { title: "ilk".into(), ..msg(&a, LiveState::Run) }, 0);
+        set.apply(LiveMsg { title: "ikinci".into(), ..msg(&b, LiveState::Run) }, 10);
+        set.apply(msg(&b, LiveState::Clear), 20);
+        assert_eq!(set.items().len(), 1);
+        assert_eq!((set.items()[0].id.as_str(), set.items()[0].title.as_str()), (a.as_str(), "ilk"));
     }
 
     #[test]
@@ -593,7 +739,7 @@ mod tests {
     #[test]
     fn push_reads_flags() {
         let m = parse_push(&args(&["--id", "b", "--title", "cargo build", "--progress", "40"]));
-        assert_eq!(m, Some(LiveMsg { id: "b".into(), title: "cargo build".into(), text: String::new(), progress: Some(40), state: LiveState::Run, claude: None }));
+        assert_eq!(m, Some(LiveMsg { id: "b".into(), title: "cargo build".into(), text: String::new(), progress: Some(40), state: LiveState::Run, claude: None, app: None }));
         let state = |s: &str| parse_push(&args(&["--id", "b", "--title", "t", "--state", s])).map(|m| m.state);
         assert_eq!(state("wait"), Some(LiveState::Wait));
         assert_eq!(state("done"), Some(LiveState::Done));

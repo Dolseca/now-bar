@@ -127,7 +127,7 @@ mod tests {
     #[test]
     fn command_round_trips() {
         assert_eq!(Command::from_json(&Command::Update.to_json()), Some(Command::Update));
-        let live = Command::Live(Box::new(LiveMsg { id: "b".into(), title: "çalışma".into(), text: "x".into(), progress: Some(40), state: LiveState::Wait, claude: None }));
+        let live = Command::Live(Box::new(LiveMsg { id: "b".into(), title: "çalışma".into(), text: "x".into(), progress: Some(40), state: LiveState::Wait, claude: None, app: None }));
         assert_eq!(Command::from_json(&live.to_json()), Some(live));
         assert_eq!(Command::from_json("{}"), None);
         assert_eq!(Command::from_json("not json"), None);
@@ -145,7 +145,7 @@ mod tests {
         use crate::activities::claude::{ClaudeNote, Task, TaskChange, TaskStatus};
         let tasks = (0..200).map(|i| Task { content: format!("görev {i} ").repeat(6), status: TaskStatus::Pending }).collect();
         let note = ClaudeNote { tasks: Some(TaskChange::Replace(tasks)), summary: Some("özet".into()), ..Default::default() };
-        let big = Command::Live(Box::new(LiveMsg { id: "claude:s".into(), title: "x".into(), text: String::new(), progress: None, state: LiveState::Run, claude: Some(note) }));
+        let big = Command::Live(Box::new(LiveMsg { id: "claude:s".into(), title: "x".into(), text: String::new(), progress: None, state: LiveState::Run, claude: Some(note), app: None }));
         assert!(big.to_json().len() > MAX_BYTES);
         let small = fitted(big);
         assert!(small.to_json().len() <= MAX_BYTES);
@@ -160,7 +160,7 @@ mod tests {
         use crate::activities::claude::{Ask, ClaudeNote};
         let ask = |id: &str| {
             let note = ClaudeNote { ask: Some(Ask { id: id.into(), tool: "Bash".into(), detail: "ls".into(), ..Default::default() }), ..Default::default() };
-            Command::Live(Box::new(LiveMsg { id: "claude:s".into(), title: "x".into(), text: String::new(), progress: None, state: LiveState::Wait, claude: Some(note) }))
+            Command::Live(Box::new(LiveMsg { id: "claude:s".into(), title: "x".into(), text: String::new(), progress: None, state: LiveState::Wait, claude: Some(note), app: None }))
         };
         assert_eq!(answer_for(&ask("9-1"), true, 60), 60, "the hook waits this many seconds");
         assert_eq!(answer_for(&ask("9-1"), false, 60), 1, "asks off: taken, no wait");
