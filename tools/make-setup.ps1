@@ -1,12 +1,13 @@
 # Builds what a GitHub release carries, into dist\: nowbar-setup.exe (both exes inside),
 # nowbar.exe and nowbar-settings.exe (what the updater downloads) and SHA256SUMS.txt.
 #
-#   powershell -ExecutionPolicy Bypass -File tools\make-setup.ps1 [-Jobs 2] [-KeepBuild]
+#   powershell -ExecutionPolicy Bypass -File tools\make-setup.ps1 [-Jobs 2] [-Clean]
 #
 # The C runtime is linked statically: the exes open on a Windows without the Visual C++
 # redistributable. The dist profile is release with thin LTO and stripped symbols. Its build
-# (a few GB, used only for a release) is deleted at the end unless -KeepBuild.
-param([int]$Jobs = 2, [switch]$KeepBuild)
+# (a few GB, used only for a release) is kept: the next release rebuilds only what changed
+# instead of every dependency. -Clean deletes it at the end.
+param([int]$Jobs = 2, [switch]$Clean)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 Push-Location $repo
@@ -45,9 +46,9 @@ try {
     }
     "v$version -> $dist"
     Remove-Item $payload -Recurse -Force
-    if (-not $KeepBuild) {
+    if ($Clean) {
         Remove-Item $built -Recurse -Force -ErrorAction SilentlyContinue
-        'the dist build was deleted (-KeepBuild keeps it)'
+        'the dist build was deleted'
     }
 }
 finally {

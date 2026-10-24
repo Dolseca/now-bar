@@ -113,10 +113,13 @@ inherits = "release"
 lto = false
 incremental = true
 
-# The two Slint windows' generated code changes only with their .slint files: its incremental
-# cache (over half a GB each) would buy nothing.
+# The settings window's generated code (its bindings and layouts; Slint's runtime and renderer
+# stay optimised) is most of a .slint change's build: measured 2026-10-24, rustc took 270 s on it
+# at opt-level 3, 210 s at 1, 93 s at 0, and an edit after an incremental build 41 s at 0 (182 s
+# at 1: the generated code shifts as a whole). The setup's window is small: no cache.
 [profile.quick.package.nowbar-ui]
-incremental = false
+incremental = true
+opt-level = 0
 
 [profile.quick.package.nowbar-setup]
 incremental = false
@@ -131,3 +134,7 @@ strip = true
 
 [profile.dist.build-override]
 opt-level = 3
+
+# The released settings window: its generated code at 1 builds in half the time of 3.
+[profile.dist.package.nowbar-ui]
+opt-level = 1
