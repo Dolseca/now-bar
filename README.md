@@ -1,26 +1,78 @@
+<div align="center">
+
+<img src="assets/readme/hero.png" width="880" alt="Görev çubuğunda çalan şarkının pili, üstünde açılmış müzik kartı; yanında Claude Code, maç, zamanlayıcı, Galaxy Buds, hava ve şarj pilleri">
+
 # Now Bar
 
-One UI 9'un Now Bar'ı, Windows 11 görev çubuğunda. Görev çubuğunun ortasında küçük bir pil
-durur; o an olan şeyi gösterir, tıklayınca üstünde bir kart açılır.
+**Samsung One UI'ın Now Bar'ı, Windows 11 görev çubuğunda.**
 
-Samsung ile bir ilgisi yoktur; One UI'dan esinlenen, bağımsız bir projedir.
+Görev çubuğunda küçük bir pil durur ve o an olanı gösterir: çalan şarkı, zamanlayıcı, maçın skoru,<br>
+Claude Code'un ne yaptığı. Tıklayınca üstünde bir kart açılır.
+
+**[İndir](https://github.com/nixesty/now-bar/releases/latest)** &nbsp;·&nbsp;
+[Neler gösterir](#neler-gösterir) &nbsp;·&nbsp;
+[Kurulum](#kurulum) &nbsp;·&nbsp;
+[Derleme](#derleme)
+
+<sub>One UI's Now Bar in the Windows 11 taskbar. The app speaks Turkish and English.</sub>
+
+</div>
+
+<br>
 
 ## Neler gösterir
 
-- **Medya:** Spotify, YouTube Music, tarayıcılar; Windows'un medya oturumlarından gelen her şey.
-  Pil kapağın renginde; kartta kapak, dalgalı ilerleme çubuğu, ileri-geri ve ses çıkışı seçici.
+<img src="assets/readme/pills.png" width="880" alt="Pillerden örnekler: müzik, Claude Code izin isteği, maç, zamanlayıcı, hava, yağmur uyarısı, şarj, Galaxy Buds, kamera ve mikrofon, Steam indirmesi, raf, ekran süresi sınırı, saat ve ses">
+
+- **Müzik:** Windows'un medya oturumlarından gelen her şey (Spotify, YouTube Music, tarayıcılar).
+  Pil kapağın renginde; kartta kapak, dalgalı ilerleme çubuğu, şarkı sözleri ve ses çıkışı seçici.
 - **Zamanlayıcı ve kronometre:** seçiciden (Win+Alt+N) ya da tepsi menüsünden başlar; süre
   dolunca alarm çalar, kart açılır.
-- **Galaxy Buds:** bağlanınca ve pil azalınca sol, sağ ve kutu pili.
-- **Canlı maç:** takip ettiğin takımların skoru, dakikası ve gol anları (veriler ESPN'den).
-- Birden çok şey varsa öndekinin sağında ince şeritler görünür. Fare tekerleği ya da dokunmatik
-  yüzeyde kaydırma, bunlar arasında sırayla gezer.
-- Oyun, video ya da sunum tam ekrandayken gizlenir (istisna eklenebilir).
+- **Canlı maç:** takip ettiğin futbol ve basketbol takımlarının skoru, dakikası ve gol anları.
+- **Hava durumu:** boşta saat ve hava; yağmur, kar, fırtına, kuvvetli rüzgâr, aşırı sıcak, don ve
+  hava kalitesi için uyarı. Şehir seçilmezse Windows'un konumundan bulunur.
+- **Galaxy Buds:** sol, sağ ve kutu pili, gürültü kontrolü. Birden çok Buds varsa ayarlardan seçilir.
+- **Claude Code:** Claude'un o an ne yaptığı, görev listesi; izin isteyince kartta
+  **İzin ver / Reddet** ([aşağıda](#canlı-etkinlikler)).
+- **Oyunlar:** Steam ve Epic Games indirmeleri, güncellemeleri, duraklatmaları ve oyun süresi.
+- **Dijital Denge:** günün ekran süresi, uygulamaların payı ve koyduğun sınırlar.
+- **Raf:** pile sürüklenen dosyalar orada bekler, sonra istediğin yere sürüklenir; yeni ekran
+  görüntüleri kendiliğinden eklenir.
+- **Sistem:** ses seviyesi, şarj ve düşük pil, mikrofon ya da kamerayı kullanan uygulama,
+  Bluetooth kulaklıklar.
+- Birden çok şey varsa öndekinin sağında ince şeritler görünür; pilin üstünde tekerlek, aralarında
+  gezer. Oyun, video ya da sunum tam ekrandayken pil gizlenir; acil anlar (Claude'un izin isteği,
+  hava uyarısı) oyunun üstünde küçük bir adada çıkar.
+
+## Kartlar
+
+<img src="assets/readme/music.png" width="880" alt="Müzik kartı: kapak, ilerleme çubuğu ve düğmeler; yanında aynı şarkının sözleri; altında müzik pili">
+
+Kart pilden büyür, fare uzaklaşınca geri küçülür. Müzik kartında kapağın köşesindeki **Sözler**
+şarkı sözlerini açar; sözler `lrclib.net`'ten gelir ve şarkıyla birlikte akar.
+
+<img src="assets/readme/day.png" width="880" alt="Günün özeti kartı, zamanlayıcı kartı, saatlik hava durumu kartı ve Dijital Denge kartı">
+
+Boştayken saate tıklamak günün özetini açar: hava, maçlar, son çalan şarkı ve ekran süresi.
+
+<img src="assets/readme/live.png" width="880" alt="Canlı maç kartı, Claude Code izin kartı, Galaxy Buds kartı ve raf kartı">
+
+## Ayarlar
+
+<img src="assets/readme/settings.png" width="880" alt="Ayarlar penceresi: solda sayfalar, ortada pil ve kart boyutunun önizlemeleri, sağda görünüm ayarları">
+
+Tepsi menüsünden **Ayarlar…** açılır; her değişiklik görev çubuğundaki pile anında uygulanır. Ayar
+arama çubuğu ayarları bulur, Canlı maç sayfasında takım arar, Tam ekran sayfasında istisna ekler.
+Ctrl+F aramaya, Ctrl+K eylemler menüsüne gider. Arayüz Türkçe ve İngilizce konuşur
+(Genel → Dil; varsayılan Windows'un dili).
 
 ## Kurulum
 
-`nowbar-setup.exe`'yi çalıştır. Yönetici izni istemez, `%LOCALAPPDATA%\Programs\NowBar`'a kurar
-("Değiştir" ile başka bir klasör seçilebilir). Kurulum ekranında dört seçenek var:
+<img src="assets/readme/setup.png" width="480" align="right" alt="Kurulum penceresi">
+
+[Son sürümden](https://github.com/nixesty/now-bar/releases/latest) `nowbar-setup.exe`'yi indirip
+çalıştır. Yönetici izni istemez, `%LOCALAPPDATA%\Programs\NowBar`'a kurar ("Değiştir" ile başka
+bir klasör seçilebilir). Kurulum ekranındaki seçenekler:
 
 - **Windows'la başlat**
 - **Claude Code'a bağlan** (bilgisayarda Claude Code varsa görünür)
@@ -30,6 +82,8 @@ Samsung ile bir ilgisi yoktur; One UI'dan esinlenen, bağımsız bir projedir.
 Başlat menüsüne kısayol her zaman eklenir. Now Bar "Ayarlar → Uygulamalar"da görünür ve oradan
 kaldırılır. Kaldırınca kısayollar, Windows'la başlatma ve Claude Code hook'ları da gider;
 ayarların silinmesi isteğe bağlıdır.
+
+<br clear="right">
 
 Now Bar kuruluyken setup'ı yeniden çalıştırmak onu günceller ya da onarır: çalışan Now Bar
 kapatılır, dosyaları değiştirilir, yeniden başlatılır.
@@ -47,10 +101,6 @@ Sessiz kurulum için `nowbar-setup.exe --quiet`, sessiz kaldırma için
 | Zamanlayıcı seçicisi | Win+Alt+N (Ayarlar → Genel'den değişir) |
 | Tepsi menüsü | Zamanlayıcı başlat, Kronometre başlat, Windows ile başlat, Ayarlar…, Çıkış |
 
-Ayarlar penceresi (tepsi → **Ayarlar…**) her değişikliği görev çubuğundaki pile anında uygular.
-Ayar arama çubuğu ayarları bulur; Canlı maç sayfasında takım arar, Tam ekran sayfasında istisna
-ekler. Ctrl+F aramaya, Ctrl+K eylemler menüsüne gider.
-
 ## Canlı etkinlikler
 
 Başka bir program ya da betik pilde bir etkinlik gösterebilir; Now Bar çalışmıyorsa komut hiçbir şey
@@ -65,9 +115,9 @@ nowbar.exe push --id yedek --title "Yedekleme" --state done
 "Bitti"), `clear` (hemen kalkar). Bir saat mesaj gelmeyen etkinlik kendiliğinden kalkar. Ayarlar →
 Sistem → Canlı etkinlikler kapatır.
 
-**Claude Code:** hook'ları kurmak için bir kez şunu çalıştır (exe'nin kendi yolunu yazar, önce
-`settings.json.before-nowbar` yedeğini, sonraki her yazışta `settings.json.nowbar-last`'ı alır,
-başka hook'lara dokunmaz):
+**Claude Code:** kurulumdaki **Claude Code'a bağlan** hook'ları kurar; elle kurmak ya da kaldırmak
+için (exe'nin kendi yolunu yazar, önce `settings.json.before-nowbar` yedeğini, sonraki her yazışta
+`settings.json.nowbar-last`'ı alır, başka hook'lara dokunmaz):
 
 ```
 nowbar.exe claude-hooks install
@@ -78,9 +128,10 @@ Pil Claude'un ne yaptığını gösterir ("now-bar · Düzenliyor: app.rs", sür
 ilerlemesi, son adımlar ve bitince cevabının ilk satırı ("Bitti · 12 dk · 9 dosya") vardır. Claude
 izin isteyince kartta **İzin ver / Reddet** çıkar: yalnızca kartta tamamı görünen tek satırlık
 komutlar, dosyalar, adresler ve aramalar için. Dosyada tam yolu görünür, değişikliğin kendisi
-Claude'un penceresindedir; çok satırlı komutlar, sorular ve plan onayı orada kalır. Claude'un penceresi aynı anda açıktır; hangisi önce cevaplanırsa o geçer. Kart
-cevabı 60 saniye bekler (Ayarlar → Sistem → Canlı etkinlikler). Now Bar taşınırsa hook'lar açılışta
-yeni yola geçer. Masaüstü uygulamasının Code sekmesinde, CLI'da ve VS Code'da çalışır.
+Claude'un penceresindedir; çok satırlı komutlar, sorular ve plan onayı orada kalır. Claude'un
+penceresi aynı anda açıktır; hangisi önce cevaplanırsa o geçer. Kart cevabı 60 saniye bekler
+(Ayarlar → Sistem → Canlı etkinlikler). Now Bar taşınırsa hook'lar açılışta yeni yola geçer.
+Masaüstü uygulamasının Code sekmesinde, CLI'da ve VS Code'da çalışır.
 
 ## Derleme
 
@@ -88,26 +139,30 @@ Gerekenler: Rust (MSVC araç zinciri) ve, exe'lere simgenin gömülmesi için, W
 (`rc.exe`). SDK yoksa derleme yine olur; exe'ler Windows'un varsayılan simgesiyle kalır.
 
 ```
-cargo build --release
+cargo b
 ```
 
-Derleme `target\` klasörüne çıkar; projeyi kısa bir yola klonla (MSVC'nin yol sınırı 260
-karakter). Çıkan iki exe (`target\release\nowbar.exe` ve `target\release\nowbar-settings.exe`)
-**aynı klasörde** olmalı: Now Bar ayarlar penceresini yanında
-arar. Bunları `bin\` klasörüne kopyalayıp oradan çalıştır. "Windows ile başlat" açıksa başlangıç
-kaydı, en son çalıştırılan kopyayı gösterecek şekilde kendiliğinden güncellenir.
+`cargo b`, `.cargo\config.toml`'daki kısaltma: `cargo build --profile quick --bin nowbar --bin
+nowbar-settings`. Sürüm hızında bir exe verir ama programın tamamını birlikte iyileştirmez (LTO),
+bu yüzden ısınmış bir derleme saniyeler sürer. Ayarlar penceresinin arayüzü (`ui\`, Slint)
+burada iyileştirmesiz derlenir: bir `.slint` değişikliği 4–5 dakika yerine 40 saniye tutar.
 
-`--release` tüm programı birlikte iyileştirir (LTO) ve her seferinde birkaç dakika sürer.
-Geliştirirken `cargo build --profile quick` aynı hızda bir exe'yi saniyeler içinde verir
-(`quick\` klasörüne).
+Derleme `target\quick\` klasörüne çıkar; projeyi kısa bir yola klonla (MSVC'nin yol sınırı 260
+karakter). İki exe (`nowbar.exe` ve `nowbar-settings.exe`) **aynı klasörde** olmalı: Now Bar ayarlar
+penceresini yanında arar. Bunları `bin\` klasörüne kopyalayıp oradan çalıştır. "Windows ile
+başlat" açıksa başlangıç kaydı, en son çalıştırılan kopyayı gösterecek şekilde kendiliğinden
+güncellenir.
 
 **Yayın:** `tools\make-setup.ps1`, `dist\` klasörüne bir GitHub sürümünün taşıdığı dosyaları
 yazar: `nowbar-setup.exe` (iki exe içinde), `nowbar.exe`, `nowbar-settings.exe` (güncelleyicinin
 indirdikleri) ve `SHA256SUMS.txt`. C çalışma zamanı statik bağlanır; exe'ler Visual C++
-yeniden dağıtılabilir paketi olmayan bir Windows'ta da açılır.
+yeniden dağıtılabilir paketi olmayan bir Windows'ta da açılır. Sürüm derlemesi (`target\dist\`,
+birkaç GB) saklanır: ilk sürüm 13–14 dakika sürer, sonrakiler yalnızca değişeni derler (kodda
+bir değişiklikten sonra 5 dakika kadar).
+`-Clean` sonunda siler, `-Jobs` aynı anda kaç derleme çalışacağını seçer.
 
 ```
-powershell -ExecutionPolicy Bypass -File tools\make-setup.ps1
+powershell -ExecutionPolicy Bypass -File tools\make-setup.ps1 -Jobs 6
 ```
 
 ### Yazı tipleri
@@ -139,10 +194,12 @@ Now Bar'ın konuştuğu yerler, hepsi anahtarsız:
 - **Şarkı sözleri:** çalan şarkının sanatçısı, adı ve süresi `lrclib.net`'e (Ayarlar → Medya →
   Şarkı sözleri kapatır).
 - **Hava durumu:** seçilen şehrin koordinatları Open-Meteo'ya (`api.open-meteo.com`,
-  `geocoding-api.open-meteo.com`).
+  `geocoding-api.open-meteo.com`). **Konumumu kullan** seçiliyse konum Windows'un konum
+  hizmetinden alınır (Windows izin ister); yaklaşık 1 km'ye yuvarlanmış koordinatlar yerin adı için
+  OpenStreetMap'e (`nominatim.openstreetmap.org`) gider.
 - **Maçlar:** takip edilen takımlar için ESPN (`site.api.espn.com`) ve EuroLeague/EuroCup
   (`feeds.incrowdsports.com`, `live.euroleague.net`); armalar bu kaynakların görsel adreslerinden.
-- **Güncelleme:** GitHub (`api.github.com`), aşağıda.
+- **Güncelleme:** GitHub (`api.github.com`), yukarıda.
 
 İzlenen klasörler: ShareX'in ekran görüntüsü klasörü ve Windows'un `Resimler\Screenshots`'ı (yeni
 bir görüntü pilde bir an görünür ve rafa eklenir; Ayarlar → Sistem → Ekran görüntüleri). Claude
@@ -155,7 +212,6 @@ Code'un adımları ve izin istekleri görev çubuğunda görünür: ekran payla�
 - **Galaxy Buds:** Buds2'de denendi; Buds2 Pro, Buds FE, Buds Core, Buds3, Buds3 FE ve Buds4 aynı
   protokolü kullanır, Buds Pro da bulunur. İlk Galaxy Buds, Buds+ ve Buds Live desteklenmez.
   GalaxyBudsClient ya da Samsung'un Galaxy Buds uygulaması bağlantıyı tutarken Now Bar okuyamaz.
-
 - **Duraklatılan medya 10 dakika sonra pilden kalkar** (Ayarlar → Medya → Duraklayınca kal).
   Başka bir etkinlik yoksa pil de o an gizlenir; çalınca geri gelir.
 - Ayarlar penceresi canlı verileri görmez: maçın anlık skoru, Buds'ın o anki pili ve çalışan
@@ -168,22 +224,31 @@ Code'un adımları ve izin istekleri görev çubuğunda görünür: ekran payla�
 ## Geliştirme
 
 ```
-cargo test
-cargo clippy --all-targets
+cargo t
+cargo lint
 ```
 
-- Derlemeyi hızlı tutanlar: Rust'ın kendi bağlayıcısı (`rust-lld`, `.cargo\config.toml`),
-  bağımlılıklar için hata ayıklama bilgisinin kapalı olması (`Cargo.toml`) ve ayarlar
-  penceresinin Slint arayüzünün ayrı bir crate'te (`ui\`) olması: arayüz yalnızca bir `.slint`
-  dosyası değişince yeniden derlenir.
+Testler ve clippy (`.cargo\config.toml`'daki kısaltmalar) quick profilinde çalışır: düz
+`cargo test`, bağımlılıkların ikinci bir tam kopyasını `debug\`'a derler (onlarca GB).
+
+- Derlemeyi hızlı tutanlar: Rust'ın kendi bağlayıcısı (`rust-lld`), bağımlılıklar için hata
+  ayıklama bilgisinin kapalı olması ve ayarlar penceresinin Slint arayüzünün ayrı bir crate'te
+  (`ui\`) olması: arayüz yalnızca bir `.slint` dosyası değişince yeniden derlenir.
 - `NOWBAR_SETTINGS_SHOTS=<klasör> nowbar-settings.exe`: ayarlar penceresini ekran dışında açıp
   her sayfanın gerçek çizici ile ekran görüntüsünü alır, kaydetmeden kapanır.
-- `settingsheet`, `cardsheet`, `matchsheet`: pencere açmadan örnek görüntüler (yazılım çizici).
+- `pillsheet`, `cardsheet`, `matchsheet`, `settingsheet`: pencere açmadan örnek görüntüler.
+  `readmesheet` ile `tools\readme-images.py` bu sayfadaki görselleri yeniden çizer
+  (`assets\readme\`).
 - `tools\*.ps1`: titreme, boşta kullanım, Explorer yeniden başlatma ve diğer ölçümler.
 - `nowbar.exe --demo`: bir dakikalık örnek zamanlayıcıyla başlar; `--match-replay <klasör>`
   kaydedilmiş skor tablolarıyla bir maçı yeniden oynatır.
 - `assets\make_icon.py`: simgeyi (tepsideki beyaz hap) yeniden çizer.
-- **Sürüm yayınlamak:** `Cargo.toml`'daki `version`'ı artır, `powershell -File tools\release.ps1`
-  çalıştır: `dist\` içine iki exe, zip ve `SHA256SUMS.txt` koyar ve yayın için `gh release create`
-  satırını yazar. `nowbar.exe --update-from <klasör>` güncellemeyi GitHub'sız, bir klasördeki
-  exe'lerle dener.
+- **Sürüm yayınlamak:** `Cargo.toml`'daki `version`'ı artır, `tools\make-setup.ps1`'i çalıştır,
+  sonra `dist\` içindekileri yayınla:
+  `gh release create vX.Y.Z dist\nowbar-setup.exe dist\nowbar.exe dist\nowbar-settings.exe dist\SHA256SUMS.txt`.
+  `nowbar.exe --update-from <klasör>` güncellemeyi GitHub'sız, bir klasördeki exe'lerle dener.
+
+---
+
+<sub>Samsung ile bir ilgisi yoktur; One UI'dan esinlenen, bağımsız bir projedir. Galaxy Buds'ın
+gürültü kontrolü simgeleri Samsung'a aittir.</sub>
