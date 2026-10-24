@@ -84,19 +84,24 @@ pub fn from_bytes(bytes: &[u8], side: u32) -> Option<Crest> {
 
 /// The exe's icon as Explorer shows it, `side`×`side` px; `None` without one.
 pub fn exe_icon(path: &Path, side: u32) -> Option<Crest> {
+    exe_icon_or_why(path, side).ok()
+}
+
+/// `exe_icon`, saying which step failed (and its HRESULT).
+fn exe_icon_or_why(path: &Path, side: u32) -> Result<Crest, String> {
     use windows::Win32::Foundation::SIZE;
     use windows::Win32::Graphics::Gdi::DeleteObject;
     use windows::Win32::UI::Shell::{IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY};
     if side == 0 || !path.exists() {
-        return None;
+        return Err("no such file".into());
     }
     unsafe {
-        let factory: IShellItemImageFactory = SHCreateItemFromParsingName(&HSTRING::from(path.as_os_str()), None).ok()?;
-        let bitmap = factory.GetImage(SIZE { cx: side as i32, cy: side as i32 }, SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK).ok()?;
+        let factory: IShellItemImageFactory = SHCreateItemFromParsingName(&HSTRING::from(path.as_os_str()), None).map_err(|e| format!("item: {e}"))?;
+        let bitmap = factory.GetImage(SIZE { cx: side as i32, cy: side as i32 }, SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK).map_err(|e| format!("image: {e}"))?;
         let pixels = crate::activities::shelf_worker::bitmap_pixels(bitmap);
         let _ = DeleteObject(bitmap.into());
-        let (px, w, h) = pixels?;
-        fit_pixels(&px, (w, h), side)
+        let (px, w, h) = pixels.ok_or("pixels")?;
+        fit_pixels(&px, (w, h), side).ok_or_else(|| "scale".into())
     }
 }
 
@@ -218,7 +223,8 @@ mod tests {
         unsafe {
             let _ = windows::Win32::System::Com::CoInitializeEx(None, windows::Win32::System::Com::COINIT_MULTITHREADED);
         }
-        let icon = exe_icon(&explorer, 48).expect("explorer has an icon");
+        // Failed once (only the first run after a rebuild, then 0 in 26): the step and HRESULT tell.
+        let icon = exe_icon_or_why(&explorer, 48).unwrap_or_else(|why| panic!("explorer has an icon: {why}"));
         assert_eq!(icon.size, (48, 48));
         assert!(icon.px.chunks(4).any(|p| p[3] == 255), "something opaque in it");
         assert!(exe_icon(std::path::Path::new(r"C:\yok\yok.exe"), 48).is_none());
