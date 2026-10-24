@@ -7,6 +7,8 @@ import "../../ui/fonts/Inter-Medium.ttf";
 import "../../ui/fonts/Inter-SemiBold.ttf";
 import { Theme, Tags } from "../../ui/theme.slint";
 import { Icon, Toggle } from "../../ui/kit.slint";
+// For Rust: the system's fonts go into it (Windows 10 has other ones).
+export { Theme }
 
 /// A choice: its label and the yellow toggle at the right.
 component Choice inherits Rectangle {

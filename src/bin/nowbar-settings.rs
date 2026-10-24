@@ -814,6 +814,8 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     let ui = SettingsWindow::new()?;
+    // Windows 10 has no Segoe Fluent Icons: every glyph was a box.
+    nowbar::set_slint_faces!(ui.global::<Theme>());
     let loaded = settings::load();
     speak(loaded.language);
     let bridge = Rc::new(RefCell::new(Bridge { settings: loaded.clone(), saved: loaded, hits: Vec::new(), search_gen: 0, city_gen: 0, removed: None, playing: None, buds: None }));

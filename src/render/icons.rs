@@ -1,4 +1,6 @@
 //! Icons are glyphs of the system "Segoe Fluent Icons" font, so they stay sharp at any size.
+//! Windows 10 has only its predecessor, "Segoe MDL2 Assets", with the same code points for
+//! nearly all of them ([`in_mdl2`]).
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Icon {
@@ -127,9 +129,56 @@ pub fn glyph(i: Icon) -> char {
     }
 }
 
+/// The code point to draw `c` with in Segoe MDL2 Assets: its own, but where Windows 10's MDL2
+/// lacks a newer Fluent glyph (Microsoft's MDL2 list has no U+F012) or draws it otherwise.
+/// ui/kit.slint's Icon does the same for the folder.
+pub fn in_mdl2(c: char) -> char {
+    match c {
+        // ZipFolder: MDL2's Package, a box.
+        '\u{F012}' => '\u{E7B8}',
+        // MDL2's Folder stands upright; its FolderHorizontal is Fluent's Folder.
+        '\u{E8B7}' => '\u{F12B}',
+        _ => c,
+    }
+}
+
+/// The size to draw `c` at in Segoe MDL2 Assets, as a factor on Fluent's: its batteries (made
+/// for a phone's status bar) are wider than Fluent's 1 em, and come down to it.
+pub fn mdl2_scale(c: char) -> f32 {
+    match c {
+        '\u{EBA0}'..='\u{EBAA}' => 1.0 / 1.3125,
+        '\u{EBAB}'..='\u{EBB5}' => 1.0 / 1.4375,
+        _ => 1.0,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Everything the app draws checked in both fonts with `glyphsheet` (`NOWBAR_FONTS=win10`).
+    /// MDL2's batteries (made for a phone's status bar) are 1.31 em wide, charging 1.44 em;
+    /// Fluent's 1 em, which the pills are laid out for.
+    #[test]
+    fn mdl2_batteries_draw_as_wide_as_fluents() {
+        assert_eq!(mdl2_scale('\u{EBA0}'), 1.0 / 1.3125, "Battery0");
+        assert_eq!(mdl2_scale('\u{EBAA}'), 1.0 / 1.3125, "Battery10");
+        assert_eq!(mdl2_scale('\u{EBAB}'), 1.0 / 1.4375, "BatteryCharging0");
+        assert_eq!(mdl2_scale('\u{EBB5}'), 1.0 / 1.4375, "BatteryCharging10");
+        assert_eq!(mdl2_scale(glyph(Icon::Volume)), 1.0);
+        assert_eq!(mdl2_scale('\u{EBB6}'), 1.0);
+    }
+
+    #[test]
+    fn mdl2_draws_its_own_where_it_lacks_fluents() {
+        assert_eq!(in_mdl2(glyph(Icon::Archive)), '\u{E7B8}', "the zip folder: a box");
+        assert_eq!(in_mdl2(glyph(Icon::Folder)), '\u{F12B}', "lying, like Fluent's");
+        for i in Icon::ALL.iter().filter(|i| ![Icon::Archive, Icon::Folder].contains(i)) {
+            assert_eq!(in_mdl2(glyph(*i)), glyph(*i), "{i:?}");
+        }
+        assert_eq!(in_mdl2('\u{EBA5}'), '\u{EBA5}', "a battery level");
+        assert_eq!(in_mdl2('a'), 'a');
+    }
 
     #[test]
     fn all_distinct() {

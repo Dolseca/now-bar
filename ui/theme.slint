@@ -54,7 +54,14 @@ export global Theme {
     out property <color> pop-edge: dark ? #FFFFFF1A : #00000017;
     out property <color> pop-shadow: dark ? #00000099 : #0000002E;
     out property <color> scrim: dark ? #00000099 : #0000004D;
-    out property <string> icons: "Segoe Fluent Icons";
+    /// The system's fonts, set from Rust (gfx::SystemFaces): Windows 10 has Segoe MDL2 Assets
+    /// and Segoe UI for Windows 11's Segoe Fluent Icons and Segoe UI Variable.
+    in-out property <string> icons: "Segoe Fluent Icons";
+    in-out property <bool> mdl2: false;
+    in-out property <string> text-face: "Segoe UI Variable Text";
+    in-out property <string> display-face: "Segoe UI Variable Display";
+    /// MDL2's battery is wider than Fluent's: drawn smaller, to Fluent's width (icons::mdl2_scale).
+    in-out property <float> battery-scale: 1;
 }
 
 /// Tag colours (Raycast's support colours): text on the colour at about 20 %.

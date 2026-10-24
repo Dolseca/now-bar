@@ -3,6 +3,7 @@
 // Content is a fixed sample (the settings window doesn't see the live activities).
 
 import { Store } from "store.slint";
+import { Theme } from "theme.slint";
 
 export global Pills {
     /// Pill scale for the size setting (176/300 × 28/32/36).
@@ -32,14 +33,14 @@ export global Pills {
 }
 
 component PGlyph inherits Text {
-    font-family: "Segoe Fluent Icons";
+    font-family: Theme.icons;
     horizontal-alignment: center;
     vertical-alignment: center;
     color: white;
 }
 
 component PLabel inherits Text {
-    font-family: "Segoe UI Variable Text";
+    font-family: Theme.text-face;
     vertical-alignment: center;
     color: white;
     wrap: no-wrap;
@@ -226,7 +227,7 @@ export component Pill inherits Rectangle {
             background: body.acc;
             PGlyph {
                 text: root.kind == 1 ? "\u{E823}" : root.kind == 2 ? "\u{E916}" : root.kind == 5 ? "\u{E767}" : root.kind == 6 ? "\u{EBB3}" : root.kind == 7 ? "\u{E720}" : "\u{E7F6}";
-                font-size: (root.kind == 5 ? 13 : 14) * root.u;
+                font-size: (root.kind == 5 ? 13 : root.kind == 6 ? 14 * Theme.battery-scale : 14) * root.u;
             }
         }
         if root.kind == 1 || root.kind == 2 || root.kind == 3 || root.kind == 6 || root.kind == 7: HorizontalLayout {
@@ -238,7 +239,7 @@ export component Pill inherits Rectangle {
             alignment: start;
             PLabel {
                 text: root.kind == 1 ? "04:32" : root.kind == 2 ? (Store.tenths ? "00:12,4" : "00:12") : root.kind == 6 ? @tr("%{}", 80) : root.kind == 7 ? "Discord" : @tr("%{}", 85) + " · " + @tr("%{}", 80);
-                font-family: root.kind == 3 || root.kind == 6 ? "Segoe UI Variable Text" : "Segoe UI Variable Display";
+                font-family: root.kind == 3 || root.kind == 6 ? Theme.text-face : Theme.display-face;
                 font-size: (root.kind == 3 || root.kind == 6 ? 12.5 : 14) * root.u;
                 font-weight: root.kind == 3 || root.kind == 6 ? 600 : 700;
             }
@@ -279,7 +280,7 @@ export component Pill inherits Rectangle {
             height: root.ph;
             horizontal-alignment: right;
             text: root.kind == 5 ? @tr("%{}", 45) : @tr("%{}", 70);
-            font-family: root.kind == 5 ? "Segoe UI Variable Display" : "Segoe UI Variable Text";
+            font-family: root.kind == 5 ? Theme.display-face : Theme.text-face;
             font-size: (root.kind == 5 ? 13 : 12.5) * root.u;
             font-weight: root.kind == 5 ? 700 : 600;
         }
@@ -289,7 +290,7 @@ export component Pill inherits Rectangle {
             width: parent.width - self.x - (12 + 46 + 6) * root.u;
             height: root.ph;
             text: "WH-1000XM4";
-            font-family: "Segoe UI Variable Text";
+            font-family: Theme.text-face;
             font-size: 12.5 * root.u;
             font-weight: 600;
             overflow: elide;
@@ -399,7 +400,7 @@ export component Pill inherits Rectangle {
             height: root.ph;
             horizontal-alignment: center;
             text: "2";
-            font-family: "Segoe UI Variable Display";
+            font-family: Theme.display-face;
             font-size: 16 * root.u;
             font-weight: 700;
         }
@@ -430,7 +431,7 @@ export component Pill inherits Rectangle {
             height: root.ph;
             horizontal-alignment: center;
             text: "1";
-            font-family: "Segoe UI Variable Display";
+            font-family: Theme.display-face;
             font-size: 16 * root.u;
             font-weight: 700;
         }

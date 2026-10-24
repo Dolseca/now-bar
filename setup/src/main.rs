@@ -134,6 +134,8 @@ fn has_our_hooks(path: &Path) -> bool {
 fn window(places: Places, uninstalling: bool, launch: bool) -> Result<(), slint::PlatformError> {
     let shots = std::env::var("NOWBAR_SETUP_SHOTS").ok();
     let ui = SetupWindow::new()?;
+    // Windows 10 has no Segoe Fluent Icons: the glyphs would be boxes.
+    nowbar::set_slint_faces!(ui.global::<Theme>());
     let _ = slint::select_bundled_translation(if nowbar::i18n::lang() == nowbar::i18n::Language::English { "en" } else { "" });
     let (position, scale) = centre_at_mouse();
     stage::fill(&ui, scale);

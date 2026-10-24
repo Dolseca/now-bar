@@ -4,13 +4,15 @@
 
 import { Theme, Tags } from "theme.slint";
 
-/// A Segoe Fluent Icons glyph, centred in its box.
+/// A Segoe Fluent Icons glyph (Segoe MDL2 Assets on Windows 10), centred in its box.
 export component Icon inherits Text {
     in property <string> glyph;
     in property <length> size: 14px;
-    text: glyph;
+    // Windows 10's MDL2 (icons::in_mdl2): its Folder stands upright, FolderHorizontal is Fluent's;
+    // its charging battery is wider.
+    text: Theme.mdl2 && glyph == "\u{E8B7}" ? "\u{F12B}" : glyph;
     font-family: Theme.icons;
-    font-size: size;
+    font-size: glyph == "\u{EBB3}" ? size * Theme.battery-scale : size;
     color: Theme.glyph;
     horizontal-alignment: center;
     vertical-alignment: center;

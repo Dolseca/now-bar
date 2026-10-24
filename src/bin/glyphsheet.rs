@@ -1,6 +1,7 @@
 //! Dev tool: renders every icon and a Turkish text sample in each face and weight to a PNG,
 //! to check icon code points and font fallback by eye.
-//! Usage: `glyphsheet [out.png] [--probe E768,F5B0,...]` (probe draws extra code points in a row).
+//! Usage: `glyphsheet [out.png] [--probe E768,F5B0,...]` (probe draws extra code points, 12 to a
+//! row). `NOWBAR_FONTS=win10` draws with Windows 10's fonts (Segoe MDL2 Assets, Segoe UI).
 
 use nowbar::render::gfx::{rect, white, Face, Ink, TextKit, TextStyle, Weight};
 use nowbar::render::icons::{glyph, Icon};
@@ -27,7 +28,10 @@ fn main() -> Result<()> {
         .unwrap_or_else(|| std::env::temp_dir().join("glyphsheet.png").to_string_lossy().into_owned());
     unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).ok()? };
     let text = TextKit::new()?;
-    let (w, h) = (900u32, 630u32);
+    // The icons six to a row, then the probe, then the text samples.
+    let probe_y = 20.0 + Icon::ALL.len().div_ceil(6) as f32 * 95.0;
+    let text_y = probe_y + probe.len().div_ceil(12) as f32 * 70.0 + 10.0;
+    let (w, h) = (900u32, text_y as u32 + 8 * 40 + 10);
     unsafe {
         let wic: IWICImagingFactory = CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;
         let bmp = wic.CreateBitmap(w, h, &GUID_WICPixelFormat32bppPBGRA, WICBitmapCacheOnLoad)?;
@@ -53,12 +57,12 @@ fn main() -> Result<()> {
             ink.text(&format!("{icon:?} U+{:04X}", glyph(*icon) as u32), rect(x, y + 60.0, 140.0, 22.0), &label)?;
         }
         for (i, cp) in probe.iter().enumerate() {
-            let x = 20.0 + i as f32 * 72.0;
+            let (x, y) = (20.0 + (i % 12) as f32 * 72.0, probe_y + (i / 12) as f32 * 70.0);
             let ch = char::from_u32(*cp).unwrap_or('?').to_string();
-            ink.text(&ch, rect(x, 210.0, 60.0, 50.0), &TextStyle::new(Face::Icons, Weight::Regular, 32.0, white(1.0)).centered())?;
-            ink.text(&format!("{cp:04X}"), rect(x, 258.0, 60.0, 18.0), &TextStyle::new(Face::Text, Weight::Regular, 12.0, white(0.7)).centered())?;
+            ink.text(&ch, rect(x, y, 60.0, 50.0), &TextStyle::new(Face::Icons, Weight::Regular, 32.0, white(1.0)).centered())?;
+            ink.text(&format!("{cp:04X}"), rect(x, y + 48.0, 60.0, 18.0), &TextStyle::new(Face::Text, Weight::Regular, 12.0, white(0.7)).centered())?;
         }
-        let mut y = if probe.is_empty() { 220.0 } else { 290.0 };
+        let mut y = text_y;
         for face in [Face::Display, Face::Text] {
             for weight in [Weight::Regular, Weight::Medium, Weight::SemiBold, Weight::Bold] {
                 let st = TextStyle::new(face, weight, 20.0, white(1.0)).tabular();

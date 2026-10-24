@@ -99,6 +99,7 @@ fn main() {
         slint::select_bundled_translation("en").expect("English bundled");
     }
     ui.global::<Theme>().set_dark(dark);
+    nowbar::set_slint_faces!(ui.global::<Theme>());
     sample(&ui);
     ui.show().expect("show");
     let settle = Duration::from_millis(500);

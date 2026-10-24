@@ -130,6 +130,24 @@ pub struct Fonts {
     icons: HSTRING,
 }
 
+pub const ICON_FAMILIES: [&str; 2] = ["Segoe Fluent Icons", "Segoe MDL2 Assets"];
+pub const TEXT_FAMILIES: [&str; 2] = ["Segoe UI Variable Text", "Segoe UI"];
+pub const DISPLAY_FAMILIES: [&str; 2] = ["Segoe UI Variable Display", "Segoe UI"];
+/// What Windows 10 lacks.
+const WINDOWS_11_ONLY: [&str; 3] = ["Segoe Fluent Icons", "Segoe UI Variable Text", "Segoe UI Variable Display"];
+
+/// The first of `names` that `have` (the last when none is), passing over Windows 11's own
+/// families when drawing `as_windows_10`.
+fn first_installed<'a>(names: &[&'a str], have: impl Fn(&str) -> bool, as_windows_10: bool) -> &'a str {
+    let usable = |n: &&str| !(as_windows_10 && WINDOWS_11_ONLY.contains(n)) && have(n);
+    names.iter().copied().find(usable).unwrap_or(names[names.len() - 1])
+}
+
+/// `NOWBAR_FONTS=win10`: the dev sheets draw with what Windows 10 has.
+fn as_windows_10() -> bool {
+    std::env::var("NOWBAR_FONTS").is_ok_and(|v| v == "win10")
+}
+
 /// The first of `names` the system has (Windows 10 lacks Segoe UI Variable and Fluent Icons).
 fn installed(dwrite: &IDWriteFactory5, names: &[&str]) -> HSTRING {
     let have = |name: &str| unsafe {
@@ -140,16 +158,64 @@ fn installed(dwrite: &IDWriteFactory5, names: &[&str]) -> HSTRING {
         let (mut index, mut exists) = (0u32, windows::core::BOOL(0));
         collection.is_some_and(|c| c.FindFamilyName(&HSTRING::from(name), &mut index, &mut exists).is_ok() && exists.as_bool())
     };
-    HSTRING::from(names.iter().copied().find(|n| have(n)).unwrap_or(names[names.len() - 1]))
+    HSTRING::from(first_installed(names, have, as_windows_10()))
+}
+
+/// The system families for icons, text and display (the Slint windows take theirs from here).
+pub struct SystemFaces {
+    pub icons: String,
+    pub text: String,
+    pub display: String,
+}
+
+impl SystemFaces {
+    /// Windows 11's when it has them (DirectWrite failing: those too).
+    pub fn find() -> Self {
+        let factory: Result<IDWriteFactory5> = unsafe { DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED) };
+        let pick = |names: &[&str]| match &factory {
+            Ok(dwrite) => installed(dwrite, names).to_string(),
+            Err(_) => names[0].to_string(),
+        };
+        SystemFaces { icons: pick(&ICON_FAMILIES), text: pick(&TEXT_FAMILIES), display: pick(&DISPLAY_FAMILIES) }
+    }
+
+    /// Windows 10's Segoe MDL2 Assets.
+    pub fn mdl2(&self) -> bool {
+        self.icons == ICON_FAMILIES[1]
+    }
+
+    /// The size the Slint windows draw the charging battery (U+EBB3) at.
+    pub fn battery_scale(&self) -> f32 {
+        if self.mdl2() {
+            super::icons::mdl2_scale('\u{EBB3}')
+        } else {
+            1.0
+        }
+    }
+}
+
+/// Gives a Slint window's `Theme` global (ui/theme.slint) the system's fonts. The settings window
+/// and the setup each have their own generated `Theme`, with the same setters.
+#[macro_export]
+macro_rules! set_slint_faces {
+    ($theme:expr) => {{
+        let faces = $crate::render::gfx::SystemFaces::find();
+        let theme = $theme;
+        theme.set_battery_scale(faces.battery_scale());
+        theme.set_mdl2(faces.mdl2());
+        theme.set_icons(faces.icons.into());
+        theme.set_text_face(faces.text.into());
+        theme.set_display_face(faces.display.into());
+    }};
 }
 
 impl Fonts {
     fn system(dwrite: &IDWriteFactory5) -> Self {
         Fonts {
             collection: None,
-            display: installed(dwrite, &["Segoe UI Variable Display", "Segoe UI"]),
-            text: installed(dwrite, &["Segoe UI Variable Text", "Segoe UI"]),
-            icons: installed(dwrite, &["Segoe Fluent Icons", "Segoe MDL2 Assets"]),
+            display: installed(dwrite, &DISPLAY_FAMILIES),
+            text: installed(dwrite, &TEXT_FAMILIES),
+            icons: installed(dwrite, &ICON_FAMILIES),
         }
     }
 
@@ -187,7 +253,7 @@ impl Fonts {
             let mut buf = vec![0u16; len + 1];
             names.GetString(0, &mut buf)?;
             let family = HSTRING::from_wide(&buf[..len]);
-            Ok(Fonts { collection: Some(collection), display: family.clone(), text: family, icons: installed(dwrite, &["Segoe Fluent Icons", "Segoe MDL2 Assets"]) })
+            Ok(Fonts { collection: Some(collection), display: family.clone(), text: family, icons: installed(dwrite, &ICON_FAMILIES) })
         }
     }
 
@@ -295,6 +361,16 @@ pub struct Ink<'a> {
 impl Ink<'_> {
     fn layout(&self, s: &str, w: f32, h: f32, st: &TextStyle) -> Result<IDWriteTextLayout> {
         let (family, collection) = self.text.fonts.family(st.face);
+        // Windows 10's icon font: a few glyphs differ (an icon's text is one glyph).
+        let (mdl2, mut size) = (st.face == Face::Icons && family == ICON_FAMILIES[1], st.size_px);
+        let mapped: String;
+        let s = if mdl2 {
+            size *= s.chars().next().map_or(1.0, super::icons::mdl2_scale);
+            mapped = s.chars().map(super::icons::in_mdl2).collect();
+            &mapped
+        } else {
+            s
+        };
         let dw = &self.text.dwrite;
         unsafe {
             let weight = st.weight.dwrite();
@@ -302,8 +378,8 @@ impl Ink<'_> {
             let stretch = DWRITE_FONT_STRETCH_NORMAL;
             let locale = &HSTRING::from("tr-TR");
             let fmt = match collection {
-                Some(c) => dw.CreateTextFormat(&family, c, weight, style, stretch, st.size_px, locale)?,
-                None => dw.CreateTextFormat(&family, None, weight, style, stretch, st.size_px, locale)?,
+                Some(c) => dw.CreateTextFormat(&family, c, weight, style, stretch, size, locale)?,
+                None => dw.CreateTextFormat(&family, None, weight, style, stretch, size, locale)?,
             };
             fmt.SetTextAlignment(st.align)?;
             fmt.SetParagraphAlignment(st.valign)?;
@@ -737,6 +813,24 @@ pub fn pcwstr(w: &[u16]) -> PCWSTR {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_first_installed_family_wins() {
+        let win10 = |n: &str| !WINDOWS_11_ONLY.contains(&n);
+        assert_eq!(first_installed(&ICON_FAMILIES, |_| true, false), "Segoe Fluent Icons");
+        assert_eq!(first_installed(&ICON_FAMILIES, win10, false), "Segoe MDL2 Assets");
+        assert_eq!(first_installed(&TEXT_FAMILIES, win10, false), "Segoe UI");
+        assert_eq!(first_installed(&DISPLAY_FAMILIES, win10, false), "Segoe UI");
+        // None at all: the last one, DirectWrite's fallback takes it from there.
+        assert_eq!(first_installed(&ICON_FAMILIES, |_| false, false), "Segoe MDL2 Assets");
+    }
+
+    /// `NOWBAR_FONTS=win10`: the sheets draw on Windows 11 as Windows 10 would.
+    #[test]
+    fn windows_10_fonts_on_windows_11() {
+        assert_eq!(first_installed(&ICON_FAMILIES, |_| true, true), "Segoe MDL2 Assets");
+        assert_eq!(first_installed(&TEXT_FAMILIES, |_| true, true), "Segoe UI");
+    }
 
     /// "Yazılar tam ortada durmuyor": DirectWrite centres the line box, which puts Segoe
     /// UI's capitals and digits about a pixel low; the cap height is what should be centred.
