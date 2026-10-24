@@ -229,6 +229,11 @@ pub struct Settings {
     pub capture_to_shelf: bool,
     /// Claude's permission requests get "İzin ver" / "Reddet" on its card.
     pub claude_ask: bool,
+    /// Other apps may ask to show notifications over loopback HTTP (DOCS.md); off until the
+    /// user turns it on, in the setup or here: nothing listens before.
+    pub api_enabled: bool,
+    /// The user's answers to the apps that asked, newest last.
+    pub api_apps: Vec<ApiApp>,
     // Oyunlar
     /// Steam's games (downloads, play) from its registry key and files.
     pub games_steam: bool,
@@ -340,6 +345,8 @@ impl Default for Settings {
             capture_moment: true,
             capture_to_shelf: true,
             claude_ask: true,
+            api_enabled: false,
+            api_apps: Vec::new(),
             claude_ask_wait_s: 60,
             games_steam: true,
             games_epic: true,
@@ -389,6 +396,18 @@ impl Settings {
         for l in &mut self.wellbeing_limits {
             l.minutes = l.minutes.min(24 * 60);
         }
+        // One answer per app (name and exe; Windows paths ignore case), the last one given.
+        let mut apps: Vec<ApiApp> = Vec::new();
+        for a in std::mem::take(&mut self.api_apps) {
+            let (name, exe) = (a.name.trim().to_string(), a.exe.trim().to_string());
+            if name.is_empty() || exe.is_empty() {
+                continue;
+            }
+            apps.retain(|b| !(b.name == name && b.exe.to_lowercase() == exe.to_lowercase()));
+            apps.push(ApiApp { name, exe, allowed: a.allowed });
+        }
+        let extra = apps.len().saturating_sub(64);
+        self.api_apps = apps.split_off(extra);
         if self.settings_page > crate::settings_ui::LAST_PAGE {
             self.settings_page = 0;
         }
@@ -613,6 +632,36 @@ mod tests {
         let merged = merge(&base, &mine, &disk);
         assert_eq!((merged.autostart, merged.pill_opacity_pct), (false, 80), "the tray's change stays, the window's lands");
         assert_eq!(merge(&base, &base, &disk), disk, "nothing changed in the window: the disk wins");
+    }
+
+    #[test]
+    fn api_is_off_by_default() {
+        assert!(!Settings::default().api_enabled && Settings::default().api_apps.is_empty());
+        let old = parse(r#"{"enabled": true}"#);
+        assert!(!old.api_enabled, "an older file: nothing listens until the user says so");
+    }
+
+    #[test]
+    fn api_apps_are_tidied() {
+        let app = |name: &str, exe: &str, allowed| ApiApp { name: name.into(), exe: exe.into(), allowed };
+        let s = Settings {
+            api_apps: vec![app(" Ekin ", r"C:\Apps\ekin.exe", true), app("", r"C:\Apps\x.exe", true), app("Deniz", " ", true), app("Ekin", r"c:\apps\EKIN.exe", false)],
+            ..Settings::default()
+        }
+        .sanitized();
+        assert_eq!(s.api_apps, vec![app("Ekin", r"c:\apps\EKIN.exe", false)], "trimmed, empty ones dropped, the last answer kept");
+        let many = Settings { api_apps: (0..80).map(|n| app(&format!("Uygulama {n}"), r"C:\Apps\a.exe", true)).collect(), ..Settings::default() }.sanitized();
+        assert_eq!((many.api_apps.len(), many.api_apps[0].name.as_str()), (64, "Uygulama 16"), "the newest 64");
+    }
+
+    #[test]
+    fn merge_keeps_api_apps_written_by_the_app() {
+        // The window is open; meanwhile the Now Bar saved the user's answer to a prompt.
+        let base = Settings::default();
+        let disk = Settings { api_apps: vec![ApiApp { name: "Ekin".into(), exe: r"C:\Apps\ekin.exe".into(), allowed: true }], ..Settings::default() };
+        let mine = Settings { idle_clock: false, ..Settings::default() };
+        let merged = merge(&base, &mine, &disk);
+        assert_eq!((merged.idle_clock, merged.api_apps.len()), (false, 1));
     }
 
     #[test]
