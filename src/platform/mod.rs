@@ -11,6 +11,7 @@ pub mod http;
 pub mod ipc;
 pub mod updater;
 pub mod log;
+pub mod os;
 pub mod power;
 pub mod privacy;
 pub mod session;

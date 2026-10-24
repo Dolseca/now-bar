@@ -79,7 +79,7 @@ use crate::render::card::{
 };
 use crate::render::morph::PAGE_OUT_MS;
 use crate::render::gfx::{is_device_lost, Gfx};
-use crate::render::layout::{card_rect, fit_pill, frame_x, pill_rect, RectPx, Scale, TaskbarInfo};
+use crate::render::layout::{card_rect, fit_pill, frame_x, pill_fit, pill_rect, RectPx, Scale, TaskbarInfo};
 use crate::render::morph::{Morph, SHADOW_BLUR_DIP, SHADOW_DY_DIP};
 use crate::render::pill::{layout_for, waveform_levels, PillButton, PillContent, PillLayout, PillVisual, MAX_SLIVERS, PILL_H_DIP, SLIVER_STEP_DIP};
 
@@ -523,7 +523,8 @@ impl Ui {
         let info = taskbar::taskbar_info(bar)?;
         let scale = Scale::from_dpi(unsafe { GetDpiForWindow(bar) });
         let s = settings::current();
-        let pill_scale = Scale(scale.0 * pill_size_factor(s.pill_size));
+        // A low taskbar (Windows 10's, lower still with small buttons) takes a smaller pill.
+        let pill_scale = Scale(scale.0 * pill_fit(info.rect.h, PILL_H_DIP, &scale, pill_size_factor(s.pill_size)));
         let card_scale = Scale(scale.0 * if s.card_size == CardSize::Compact { 0.88 } else { 1.0 });
         let placeholder = PillContent::Timer { text: String::new(), label: "", paused: false };
         let pill_r = App::pill_home(&info, &pill_scale, placeholder.width_dip());

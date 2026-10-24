@@ -101,6 +101,13 @@ pub fn fit_pill(home: RectPx, circle: RectPx, tail: i32, gap: i32, bar: &Taskbar
         .or_else(|| clear_of(circle, tail, gap, bar, taken).map(|r| (r, true)))
 }
 
+/// The pill size setting's `factor`, made smaller where the taskbar (`bar_h` px tall) is too low
+/// for a pill `h_dip` tall at `s` to keep 3 DIP above and below it.
+pub fn pill_fit(bar_h: i32, h_dip: f32, s: &Scale, factor: f32) -> f32 {
+    let room = bar_h as f32 - 2.0 * s.px(3.0);
+    factor.min(room / (h_dip * s.0))
+}
+
 /// A card centred on `center_x`, its bottom `gap_dip` above the taskbar.
 pub fn card_rect(bar: &TaskbarInfo, center_x: i32, w_dip: f32, h_dip: f32, gap_dip: f32, s: &Scale) -> RectPx {
     let w = s.even_px(w_dip) as i32;
@@ -286,6 +293,20 @@ mod tests {
         // and the tray's gap at 1414; twenty-three don't.
         assert!(fit_pill(media_home(), circle_home(), 30, 10, &bar(TaskbarAlign::Left, false), &items_at_125(22)).is_some());
         assert_eq!(fit_pill(media_home(), circle_home(), 30, 10, &bar(TaskbarAlign::Left, false), &items_at_125(23)), None);
+    }
+
+    /// Windows 11's taskbar (48 DIP) has room for every size; Windows 10's (40, or 30 with small
+    /// buttons) makes the pill smaller so it keeps 3 DIP above and below.
+    #[test]
+    fn pill_fits_the_taskbars_height() {
+        let one = Scale::from_dpi(96);
+        assert_eq!(pill_fit(48, 32.0, &one, 1.125), 1.125, "Windows 11, Large");
+        assert_eq!(pill_fit(40, 32.0, &one, 1.0), 1.0, "Windows 10, Standard");
+        assert_eq!(pill_fit(40, 32.0, &one, 1.125), 34.0 / 32.0, "Windows 10, Large: 34 px");
+        assert_eq!(pill_fit(30, 32.0, &one, 0.875), 0.75, "small buttons: 24 px");
+        let s = Scale::from_dpi(144);
+        assert_eq!(pill_fit(72, 32.0, &s, 1.125), 1.125, "Windows 11 at 150 %");
+        assert_eq!(pill_fit(45, 32.0, &s, 1.0), 35.0 / 48.0, "small buttons at 150 %: 35 px");
     }
 
     #[test]
