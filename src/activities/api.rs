@@ -515,11 +515,20 @@ pub fn image_size(b: &[u8]) -> Option<(u32, u32)> {
 /// Claude (letters and digits only, any case) aren't anyone's to take.
 pub fn app_name_ok(name: &str) -> bool {
     let count = name.chars().count();
-    if !(1..=32).contains(&count) || name.trim().is_empty() || name.chars().any(char::is_control) {
+    if !(1..=32).contains(&count) || name.trim().is_empty() || name.chars().any(misleads) {
         return false;
     }
     let plain: String = name.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect();
     !["nowbar", "windows", "microsoft", "defender", "claude", "anthropic", "samsung"].iter().any(|w| plain.contains(w))
+}
+
+/// A character that could make the card's "name · exe" say something else: control and
+/// invisible ones (zero-width, direction marks, soft hyphens), spaces other than a plain one,
+/// and the card's own separators.
+fn misleads(c: char) -> bool {
+    c.is_control()
+        || (c.is_whitespace() && c != ' ')
+        || matches!(c, '·' | '•' | '\u{00AD}' | '\u{061C}' | '\u{180E}' | '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{206F}' | '\u{FE00}'..='\u{FE0F}' | '\u{FEFF}' | '\u{FFF9}'..='\u{FFFB}')
 }
 
 /// Whether a button may open `uri`: the web, mail, or an app's own protocol; never one of
@@ -946,6 +955,10 @@ mod tests {
         }
         for bad in ["", "   ", &"a".repeat(33), "Windows Update", "now-bar", "Now Bar", "CLAUDE", "Microsoft Defender", "Sam sung", "Anthropic", "a\u{7}b"] {
             assert!(!app_name_ok(bad), "{bad}");
+        }
+        // What could make the card's "name · exe" lie: invisible marks, turned-around text, its own dot.
+        for bad in ["Ekin\u{200B}", "Ek\u{202E}exe.nik", "Ekin · ekin.exe", "Ekin • x", "Ekin\u{00A0}Uygulama", "\u{FEFF}Ekin", "Ekin\u{2066}x", "Ek\u{00AD}in"] {
+            assert!(!app_name_ok(bad), "{bad:?}");
         }
         assert_eq!(notify(r#"{"app":"Windows Güvenlik","title":"t"}"#), Err(Reject::BadRequest("app")));
         assert_eq!(notify(r#"{"app":"  Ekin  ","title":"t"}"#).map(|r| r.app), Ok("Ekin".into()), "trimmed");

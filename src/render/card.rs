@@ -203,7 +203,9 @@ pub fn media_app_name_width_dip(chip_w_dip: Option<f32>) -> f32 {
 pub struct AppCard {
     pub key: u32,
     pub title: String,
-    pub sender: String,
+    /// Who sent it: the name it gave and its exe's file name (never cut: the name gives way).
+    pub name: String,
+    pub exe: String,
     pub text: String,
     /// "%40", "4:12", "Bitti"; empty for a notification.
     pub status: String,
@@ -217,6 +219,25 @@ pub struct AppCard {
 
 /// An app's icon on its card, in DIP.
 pub const APP_CARD_ICON_DIP: f32 = 40.0;
+
+/// Where an app card's buttons go (left and right, px): right-aligned, 8 DIP apart, each its
+/// label (`label_px`, measured) plus 32 DIP and 72 DIP at least, and all of them clear of
+/// "Sustur" (16 + 84 DIP and a gap): long labels share what is left and get cut.
+pub fn app_button_spans(w: f32, label_px: &[f32], s: &Scale) -> Vec<(f32, f32)> {
+    let d = |v: f32| v * s.0;
+    let n = label_px.len() as f32;
+    let room = w - d(16.0) - d(16.0 + 84.0 + 8.0) - d(8.0) * (n - 1.0).max(0.0);
+    let natural: Vec<f32> = label_px.iter().map(|l| (l + d(32.0)).max(d(72.0))).collect();
+    let widths: Vec<f32> = if natural.iter().sum::<f32>() > room { vec![room / n; label_px.len()] } else { natural };
+    let mut right = w - d(16.0);
+    let mut spans: Vec<(f32, f32)> = widths.iter().rev().map(|w| {
+        let span = (right - w, right);
+        right -= w + d(8.0);
+        span
+    }).collect();
+    spans.reverse();
+    spans
+}
 
 /// The lines an app's text takes on its card (up to three; about 44 characters a line, the
 /// painter cuts what doesn't fit).
@@ -1005,14 +1026,13 @@ impl Painter<'_, '_> {
         let text_w = self.w - text_x - d(60.0);
         let title = TextStyle::new(Face::Text, Weight::SemiBold, d(16.0), white(1.0)).top().ellipsis();
         self.ink.text(&c.title, rect(text_x, d(17.0), text_w, d(22.0)), &title)?;
-        let (line, style) = if c.prompt {
-            (tr("Bildirim göstermek istiyor").to_string(), TextStyle::new(Face::Text, Weight::SemiBold, d(12.5), lighten(c.accent)))
-        } else if c.status.is_empty() {
-            (c.sender.clone(), TextStyle::new(Face::Text, Weight::Regular, d(12.5), white(0.7)))
+        let line = rect(text_x, d(40.0), text_w, d(18.0));
+        if c.prompt {
+            let asks = TextStyle::new(Face::Text, Weight::SemiBold, d(12.5), lighten(c.accent)).top().ellipsis();
+            self.ink.text(tr("Bildirim göstermek istiyor"), line, &asks)?;
         } else {
-            (format!("{} · {}", c.sender, c.status), TextStyle::new(Face::Text, Weight::Regular, d(12.5), white(0.7)).tabular())
-        };
-        self.ink.text(&line, rect(text_x, d(40.0), text_w, d(18.0)), &style.top().ellipsis())?;
+            self.sender(c, &c.status, line, &TextStyle::new(Face::Text, Weight::Regular, d(12.5), white(0.7)).top().tabular())?;
+        }
         let close = rect(self.w - d(54.0), d(18.0), d(40.0), d(40.0));
         self.ink.text(&glyph(Icon::Close).to_string(), close, &TextStyle::new(Face::Icons, Weight::Regular, d(15.0), white(0.8)).centered())?;
         self.hits.push((close, CardAction::LiveClose));
@@ -1022,8 +1042,11 @@ impl Painter<'_, '_> {
             let panel = rect(d(16.0), d(APP_BODY_TOP), self.w - d(32.0), d(102.0));
             self.ink.rrect(panel, d(22.0), white(0.06))?;
             let (px, pw) = (panel.left + d(16.0), panel.right - panel.left - d(32.0));
-            self.ink.text(&c.sender, rect(px, panel.top + d(14.0), pw, d(18.0)), &TextStyle::new(Face::Text, Weight::SemiBold, d(13.0), white(1.0)).top().ellipsis())?;
-            self.ink.text(&c.text, rect(px, panel.top + d(36.0), pw, d(34.0)), &TextStyle::new(Face::Text, Weight::Regular, d(12.5), white(0.85)).top().wrap().ellipsis())?;
+            self.sender(c, "", rect(px, panel.top + d(14.0), pw, d(18.0)), &TextStyle::new(Face::Text, Weight::SemiBold, d(13.0), white(1.0)).top())?;
+            // The path's end (the folder and the exe) stays; a long one loses its start.
+            let path = TextStyle::new(Face::Text, Weight::Regular, d(12.5), white(0.85)).top();
+            let shown = self.end_kept(&c.text, pw, &path)?;
+            self.ink.text(&shown, rect(px, panel.top + d(40.0), pw, d(18.0)), &path)?;
             self.ink.text(tr("Yalnızca güvendiğin uygulamalara izin ver."), rect(px, panel.top + d(76.0), pw, d(16.0)), &TextStyle::new(Face::Text, Weight::Regular, d(12.0), white(0.55)).top().ellipsis())?;
             let fy = panel.bottom + d(14.0);
             let allow = rect(self.w - d(16.0) - d(96.0), fy, d(96.0), d(34.0));
@@ -1048,16 +1071,60 @@ impl Painter<'_, '_> {
         }
         let fy = y + d(14.0);
         self.chip(rect(d(16.0), fy, d(84.0), d(34.0)), tr("Sustur"), white(0.12), CardAction::AppMute(c.key))?;
-        // Right to left: the last button is the one in the accent.
-        let chip_text = TextStyle::new(Face::Text, Weight::SemiBold, d(13.5), white(1.0));
-        let mut right = self.w - d(16.0);
-        for (i, label) in c.buttons.iter().enumerate().rev() {
-            let w = (self.ink.measure(label, &chip_text)? + d(32.0)).max(d(72.0));
+        // The last button is the one in the accent; long labels are cut, never over "Sustur".
+        let chip_text = TextStyle::new(Face::Text, Weight::SemiBold, d(13.5), white(1.0)).centered().ellipsis();
+        let widths = c.buttons.iter().map(|l| self.ink.measure(l, &chip_text)).collect::<Result<Vec<f32>>>()?;
+        for (i, ((left, right), label)) in app_button_spans(self.w, &widths, self.s).into_iter().zip(&c.buttons).enumerate() {
+            let area = rect(left, fy, right - left, d(34.0));
             let fill = if i + 1 == c.buttons.len() { rgba(r, g, b, 1.0) } else { white(0.12) };
-            self.chip(rect(right - w, fy, w, d(34.0)), label, fill, CardAction::AppButton(c.key, i as u8))?;
-            right -= w + d(8.0);
+            self.ink.rrect(area, d(17.0), fill)?;
+            self.ink.text(label, rect(left + d(12.0), fy, right - left - d(24.0), d(34.0)), &chip_text)?;
+            self.hits.push((area, CardAction::AppButton(c.key, i as u8)));
         }
         Ok(())
+    }
+
+    /// "name · exe" (and " · status") on one line: the name gives way first, so who sent it
+    /// always shows whole.
+    fn sender(&self, c: &AppCard, status: &str, area: D2D_RECT_F, style: &TextStyle) -> Result<()> {
+        let tail = if status.is_empty() { format!(" · {}", c.exe) } else { format!(" · {} · {status}", c.exe) };
+        let w = area.right - area.left;
+        let whole = format!("{}{tail}", c.name);
+        // One run, cut here rather than by DirectWrite: its cut would leave a gap before the tail.
+        let line = if self.ink.measure(&whole, style)? <= w {
+            whole
+        } else {
+            let room = w - self.ink.measure(&tail, style)? - self.d(1.0);
+            format!("{}{tail}", self.start_kept(&c.name, room, style)?)
+        };
+        self.ink.text(&line, area, &style.ellipsis())
+    }
+
+    /// `text` as much as fits in `w`, keeping its start: "WWWW…".
+    fn start_kept(&self, text: &str, w: f32, style: &TextStyle) -> Result<String> {
+        let chars: Vec<char> = text.chars().collect();
+        for end in (1..chars.len()).rev() {
+            let cut: String = chars[..end].iter().copied().chain(std::iter::once('…')).collect();
+            if self.ink.measure(&cut, style)? <= w {
+                return Ok(cut);
+            }
+        }
+        Ok("…".into())
+    }
+
+    /// `text` as much as fits in `w`, keeping its end: "…\Apps\Ekin\ekin.exe".
+    fn end_kept(&self, text: &str, w: f32, style: &TextStyle) -> Result<String> {
+        if self.ink.measure(text, style)? <= w {
+            return Ok(text.to_string());
+        }
+        let chars: Vec<char> = text.chars().collect();
+        for start in 1..chars.len() {
+            let cut: String = std::iter::once('…').chain(chars[start..].iter().copied()).collect();
+            if self.ink.measure(&cut, style)? <= w {
+                return Ok(cut);
+            }
+        }
+        Ok("…".into())
     }
 
     /// The mark in the accent circle, the title over its last line, the status, the ×; with a
@@ -2103,7 +2170,8 @@ mod tests {
         AppCard {
             key: 1,
             title: "Yedekleme".into(),
-            sender: "Ekin · ekin.exe".into(),
+            name: "Ekin".into(),
+            exe: "ekin.exe".into(),
             text: String::new(),
             status: String::new(),
             progress: None,
@@ -2125,6 +2193,20 @@ mod tests {
         assert_eq!(card_size_dip(&CardContent::App(Box::new(AppCard { prompt: true, ..app_card() }))), (370.0, 236.0), "as Claude's ask");
         assert_eq!(card_radius_dip(&CardContent::App(Box::new(app_card()))), 36.0);
         assert_eq!(card_accent(&CardContent::App(Box::new(app_card()))), (0x1D, 0xB9, 0x54));
+    }
+
+    #[test]
+    fn app_buttons_keep_clear_of_sustur() {
+        let s = Scale(1.25);
+        let (w, d) = (370.0 * s.0, |v: f32| v * s.0);
+        // Two labels near the 16-character cap: about 150 DIP each with their padding.
+        let wide = app_button_spans(w, &[d(150.0), d(150.0)], &s);
+        assert!(wide.iter().all(|(l, _)| *l >= d(16.0 + 84.0 + 8.0) - 0.5), "clear of Sustur: {wide:?}");
+        assert!((wide[1].1 - (w - d(16.0))).abs() < 0.5, "flush right");
+        assert!(wide[0].1 <= wide[1].0 - d(8.0) + 0.5, "8 DIP apart");
+        let short = app_button_spans(w, &[d(60.0)], &s);
+        assert!((short[0].1 - short[0].0 - d(92.0)).abs() < 0.5, "a short label keeps its width: {short:?}");
+        assert!((app_button_spans(w, &[d(10.0)], &s)[0].1 - app_button_spans(w, &[d(10.0)], &s)[0].0 - d(72.0)).abs() < 0.5, "72 DIP at least");
     }
 
     #[test]

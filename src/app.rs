@@ -2682,7 +2682,8 @@ impl App {
         AppCard {
             key: i.key,
             title: i.title.clone(),
-            sender: app.sender(),
+            name: app.name.clone(),
+            exe: app.exe.rsplit(['\\', '/']).next().unwrap_or(&app.exe).to_string(),
             // A prompt shows where the app really runs from.
             text: if app.prompt { app.exe.clone() } else { i.text.clone() },
             status: if app.prompt { String::new() } else { Self::app_status(i, app, now) },

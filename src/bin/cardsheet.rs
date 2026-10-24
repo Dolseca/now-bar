@@ -42,10 +42,16 @@ fn media(accent: [u8; 3]) -> MediaSnapshot {
 /// A stand-in thumbnail: a diagonal two-colour gradient, opaque (premultiplied BGRA).
 /// An app's card (the API), sent by a made-up "Ekin".
 fn app_card(title: &str, text: &str, status: &str, progress: Option<u8>, icon: Option<AppIcon>, buttons: &[&str], prompt: bool) -> CardContent {
+    app_card_from("Ekin", title, text, status, progress, icon, buttons, prompt)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn app_card_from(name: &str, title: &str, text: &str, status: &str, progress: Option<u8>, icon: Option<AppIcon>, buttons: &[&str], prompt: bool) -> CardContent {
     CardContent::App(Box::new(AppCard {
         key: 10,
         title: title.into(),
-        sender: "Ekin · ekin.exe".into(),
+        name: name.into(),
+        exe: "ekin.exe".into(),
         text: text.into(),
         status: status.into(),
         progress,
@@ -273,6 +279,9 @@ fn main() -> Result<()> {
         app_card("Yedekleme", "Belgeler klasörü", "%40", Some(40), Some(AppIcon::Image { id: 1, src: swatch(s.px(40.0) as u32, [0x2F, 0x80, 0xED], [0x56, 0xCC, 0xF2]) }), &["Durdur"], false),
         app_card("Ekin", r"C:\Apps\Ekin\ekin.exe", "", None, Some(AppIcon::Image { id: 2, src: swatch(s.px(40.0) as u32, [0xF2, 0x99, 0x4A], [0xEB, 0x57, 0x57]) }), &[], true),
         app_card("Yedekleme bitti", &"12 dosya kopyalandı, 48 MB; eski yedeklerden üçü silindi ve disk alanı açıldı. ".repeat(2), "", None, None, &[], false),
+        // The worst a name, a path and labels can do: the exe and Sustur still show whole.
+        app_card_from(&"W".repeat(32), "Uzun adlar", "Düğmeler ve ad sığmazsa kesilir.", "%40", Some(40), None, &["Daha sonra hatır", "Şimdi indir ve k"], false),
+        app_card_from(&"W".repeat(32), &"W".repeat(32), r"C:\Users\Ekin\AppData\Local\Programs\Uzun Bir Klasör Adı\Bir Alt Klasör Daha\ekin.exe", "", None, None, &[], true),
     ];
 
     let text = TextKit::new()?;
