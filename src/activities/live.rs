@@ -168,6 +168,10 @@ impl LiveSet {
         let until_ms = m.app.as_ref().and_then(|a| a.life_ms).map(|life| now_ms + life);
         if let Some(i) = self.items.iter_mut().find(|i| i.key == key) {
             if m.app.is_some() {
+                // New buttons count from now: a click aimed at the old ones lands on nothing.
+                if i.app.as_ref().map(|a| &a.buttons) != m.app.as_ref().map(|a| &a.buttons) {
+                    i.asked_ms = now_ms;
+                }
                 (i.app, i.until_ms) = (m.app.clone(), until_ms);
             }
             let old_ask = i.info.ask.as_ref().map(|a| a.id.clone());
@@ -285,6 +289,12 @@ impl LiveSet {
     /// click landing just as a new ask is painted was aimed at the one before).
     pub fn ask_settled(&self, key: u32, now_ms: u64) -> bool {
         self.get(key).is_some_and(|i| now_ms >= i.asked_ms + ASK_SETTLE_MS)
+    }
+
+    /// Whether an app's item has been on screen (with these buttons) long enough for a click
+    /// to be meant for it.
+    pub fn app_settled(&self, key: u32, now_ms: u64) -> bool {
+        self.get(key).is_some_and(|i| now_ms >= i.asked_ms + crate::activities::api::SETTLE_MS)
     }
 
     /// The card answered: Claude carries on (or was told no), so the item runs again.

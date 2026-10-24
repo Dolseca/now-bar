@@ -5,7 +5,7 @@
 use nowbar::render::gfx::{rect, rgba, white, Face, Ink, TextKit, TextStyle, Weight};
 use nowbar::render::layout::Scale;
 use nowbar::activities::buds::{BudsSnapshot, NoiseControl, Worn};
-use nowbar::activities::live::LiveState;
+use nowbar::activities::live::{AppIcon, LiveState};
 use nowbar::render::crest::Crest;
 use nowbar::activities::shelf::FileKind;
 use nowbar::activities::weather::{describe, symbol, WeatherFx};
@@ -103,6 +103,10 @@ fn main() -> Result<()> {
         ("Claude bitti", PillContent::Live { key: 1, title: "now-bar".into(), status: "Bitti".into(), claude: true, state: LiveState::Done, action: String::new() }),
         ("push %40", PillContent::Live { key: 2, title: "cargo build".into(), status: "%40".into(), claude: false, state: LiveState::Run, action: String::new() }),
         ("Uzun başlık", PillContent::Live { key: 3, title: "Masaüstü çalışma klasörü yedeği".into(), status: "1:02:05".into(), claude: false, state: LiveState::Run, action: String::new() }),
+        ("Uygulama bildirimi", PillContent::App { key: 10, title: "Yedekleme bitti".into(), text: "12 dosya, 48 MB".into(), status: String::new(), icon: None, accent: (0x1D, 0xB9, 0x54), ring: false }),
+        ("Uygulama · %40", PillContent::App { key: 11, title: "Yedekleme".into(), text: "Belgeler".into(), status: "%40".into(), icon: Some(AppIcon::Glyph('\u{E896}')), accent: (0x2F, 0x80, 0xED), ring: false }),
+        ("Uygulama · resim", PillContent::App { key: 12, title: "Ekin".into(), text: "Yeni mesaj: yarın 10'da?".into(), status: String::new(), icon: Some(AppIcon::Image { id: 1, src: swatch(s.px(24.0) as u32, [0xF2, 0x99, 0x4A], [0xEB, 0x57, 0x57]) }), accent: (0xEB, 0x57, 0x57), ring: false }),
+        ("Uygulama izni", PillContent::App { key: 13, title: "Ekin".into(), text: String::new(), status: "İzin istiyor".into(), icon: Some(AppIcon::Image { id: 1, src: swatch(s.px(24.0) as u32, [0xF2, 0x99, 0x4A], [0xEB, 0x57, 0x57]) }), accent: (0x5D, 0x57, 0xD2), ring: true }),
         ("Mikrofon", PillContent::Privacy { app: "Discord".into(), mic: true, cam: false, more: 0 }),
         ("Kamera + mik.", PillContent::Privacy { app: "Microsoft Teams".into(), mic: true, cam: true, more: 1 }),
         ("Kamera + mik.", PillContent::Privacy { app: "Zoom".into(), mic: true, cam: true, more: 0 }),

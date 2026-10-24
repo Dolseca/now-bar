@@ -2,11 +2,49 @@
 //! before anything reaches the pill. The pure part; platform/api_server.rs owns the sockets.
 
 use std::collections::{HashMap, VecDeque};
+use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Map, Value};
 
-use crate::activities::live::{cut, LiveState};
+use crate::activities::live::{cut, AppIcon, LiveState};
 use crate::settings::ApiApp;
+
+/// What the UI thread answers a request with: `Shown` first when the request waits for a click
+/// (its prompt was answered, its item is up), then `Done`.
+#[derive(Debug)]
+pub enum Reply {
+    Shown,
+    Done { status: u16, body: String, retry_after: Option<u32> },
+}
+
+impl Reply {
+    pub fn reject(r: Reject) -> Reply {
+        Reply::Done { status: r.status(), body: reject_json(r, None), retry_after: r.retry_after() }
+    }
+
+    pub fn ok(body: String) -> Reply {
+        Reply::Done { status: 200, body, retry_after: None }
+    }
+}
+
+#[derive(Debug)]
+pub enum ApiWhat {
+    /// A notification or an activity; a notification without an id has been given one.
+    /// `exe_icon`: the caller exe's own, for a prompt (which never shows the app's choice).
+    Show { req: Box<AppRequest>, icon: Option<AppIcon>, exe_icon: Option<AppIcon> },
+    Events { wait_s: u32 },
+}
+
+/// One request for the UI thread, and where its answer goes.
+#[derive(Debug)]
+pub struct ApiCall {
+    pub caller: Caller,
+    pub what: ApiWhat,
+    pub reply: Sender<Reply>,
+}
+
+pub type ApiMailbox = Arc<Mutex<Vec<ApiCall>>>;
 
 /// Where the Now Bar listens when it can: 0x4E42, "NB", the WM_COPYDATA tag's number.
 pub const DEFAULT_PORT: u16 = 20034;

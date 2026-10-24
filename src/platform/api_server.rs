@@ -7,7 +7,7 @@ use std::io::{Read, Write};
 use std::net::{Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
+use std::sync::mpsc::{channel, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -18,47 +18,13 @@ use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
 use windows::Win32::System::RemoteDesktop::ProcessIdToSessionId;
 use windows::Win32::System::Threading::{GetCurrentProcessId, OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION};
 
+pub use crate::activities::api::{ApiCall, ApiMailbox, ApiWhat, Reply};
 use crate::activities::api::{
     discovery_json, events_json, head_end, info_json, ok_json, parse_activity, parse_events, parse_head, parse_notify, pending_json, reject_json, response,
     route, screen, AppRequest, Caller, IconSpec, Kind, RateLimiter, Reject, Route, ASK_WAIT_MS, DEFAULT_PORT, MAX_HEAD,
 };
 use crate::activities::live::AppIcon;
 use crate::platform::log::log;
-
-/// What the UI thread answers a request with: `Shown` first when the request waits for a click
-/// (its prompt was answered, its item is up), then `Done`.
-#[derive(Debug)]
-pub enum Reply {
-    Shown,
-    Done { status: u16, body: String, retry_after: Option<u32> },
-}
-
-impl Reply {
-    pub fn reject(r: Reject) -> Reply {
-        Reply::Done { status: r.status(), body: reject_json(r, None), retry_after: r.retry_after() }
-    }
-
-    pub fn ok(body: String) -> Reply {
-        Reply::Done { status: 200, body, retry_after: None }
-    }
-}
-
-#[derive(Debug)]
-pub enum ApiWhat {
-    /// A notification or an activity; a notification without an id has been given one.
-    Show { req: Box<AppRequest>, icon: Option<AppIcon> },
-    Events { wait_s: u32 },
-}
-
-/// One request for the UI thread, and where its answer goes.
-#[derive(Debug)]
-pub struct ApiCall {
-    pub caller: Caller,
-    pub what: ApiWhat,
-    pub reply: Sender<Reply>,
-}
-
-pub type ApiMailbox = Arc<Mutex<Vec<ApiCall>>>;
 
 const READ_MS: u64 = 5_000;
 const CONNECTIONS: usize = 16;
@@ -255,8 +221,9 @@ fn serve_one(stream: &mut TcpStream, shared: &Shared) -> Reply {
                 Ok(icon) => icon,
                 Err(r) => return Reply::reject(r),
             };
+            let exe_icon = if req.icon == IconSpec::Exe { icon.clone() } else { icon_for(&IconSpec::Exe, &exe, shared).unwrap_or(None) };
             let wait_s = req.wait_s;
-            (req.app.clone(), ApiWhat::Show { req, icon }, wait_s)
+            (req.app.clone(), ApiWhat::Show { req, icon, exe_icon }, wait_s)
         }
         Ok(Parsed::Events(app, wait_s)) => (app, ApiWhat::Events { wait_s }, wait_s),
         Err(r) => return Reply::reject(r),

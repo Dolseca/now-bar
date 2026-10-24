@@ -29,7 +29,7 @@ use crate::activities::weather::{fx_accent, palette, WeatherFx};
 use crate::activities::weather_alert::AlertKind;
 use crate::activities::games::Store;
 use crate::activities::football::Side;
-use crate::activities::live::LiveState;
+use crate::activities::live::{AppIcon, LiveState};
 use crate::activities::media::MediaSnapshot;
 
 /// Timers, the stopwatch and the picker: the wallpaper's colour while "Duvar kâğıdından" is on
@@ -163,7 +163,14 @@ pub enum PillContent {
     /// Something another program sent: its title and "4:12" / "%40" / "İzin istiyor" / "Bitti".
     /// `action`: Claude's step ("Düzenliyor: app.rs"), beside the title; empty for others.
     Live { key: u32, title: String, status: String, claude: bool, state: LiveState, action: String },
+    /// An app's notification, activity or permission prompt (the API): its icon (a picture at
+    /// [`APP_PILL_ICON_DIP`]'s pixels, or a glyph), the title and " · text", "%40" / "4:12" /
+    /// "Bitti" / "İzin istiyor" on the right; `ring` while it waits for the user.
+    App { key: u32, title: String, text: String, status: String, icon: Option<AppIcon>, accent: (u8, u8, u8), ring: bool },
 }
+
+/// An app's icon in the pill, in DIP (a picture is scaled to exactly this many pixels).
+pub const APP_PILL_ICON_DIP: f32 = 24.0;
 
 /// One shelf item on the pill: its preview, or its type's colour and glyph.
 #[derive(Clone, Debug, PartialEq)]
@@ -275,7 +282,7 @@ impl PillContent {
             PillContent::Game { .. } => 260.0,
             PillContent::Usage { .. } => 260.0,
             PillContent::Shelf { min_width_dip, .. } => min_width_dip.max(200.0),
-            PillContent::Live { claude: true, .. } => 300.0,
+            PillContent::Live { claude: true, .. } | PillContent::App { .. } => 300.0,
             PillContent::Clock { .. } | PillContent::Weather { .. } | PillContent::Live { .. } => 220.0,
             PillContent::Match(m) if m.moment.is_some() => 240.0,
             PillContent::Match(m) if m.wide => 220.0,
@@ -298,6 +305,7 @@ impl PillContent {
             PillContent::Usage { .. } => WELLBEING_ACCENT,
             PillContent::Live { claude: true, .. } => CLAUDE_ACCENT,
             PillContent::Live { .. } => timer_accent(),
+            PillContent::App { accent, .. } => *accent,
             PillContent::Privacy { cam: true, .. } => CAMERA_ACCENT,
             PillContent::Privacy { .. } => MIC_ACCENT,
             PillContent::Headset { .. } => HEADSET_ACCENT,
@@ -343,6 +351,7 @@ impl PillContent {
         match (self, other) {
             (PillContent::Media(a), PillContent::Media(b)) => a.id == b.id,
             (PillContent::Live { key: a, .. }, PillContent::Live { key: b, .. }) => a == b,
+            (PillContent::App { key: a, .. }, PillContent::App { key: b, .. }) => a == b,
             // One alert after another cross-fades.
             (PillContent::WeatherAlert { kind: a, .. }, PillContent::WeatherAlert { kind: b, .. }) => a == b,
             (PillContent::Game { key: a, .. }, PillContent::Game { key: b, .. }) => a == b,
@@ -956,7 +965,8 @@ fn paint_layer(
         | PillContent::Game { .. }
         | PillContent::Usage { .. }
         | PillContent::Capture { .. }
-        | PillContent::Live { .. } => {
+        | PillContent::Live { .. }
+        | PillContent::App { .. } => {
             layer.bars.SetOpacity(0.0)?;
             paint_surface(g, &layer.content_surface, l.content_w, l.pill_h, |ink| paint_pill_content(ink, front, w, h, s))?;
             layer.marquee.SetSize(Vector2 { X: 0.0, Y: 0.0 })?;
@@ -1004,7 +1014,8 @@ fn paint_timer(ink: &Ink, front: &PillContent, w: f32, h: f32, s: &Scale) -> Res
         | PillContent::Game { .. }
         | PillContent::Usage { .. }
         | PillContent::Capture { .. }
-        | PillContent::Live { .. } => {
+        | PillContent::Live { .. }
+        | PillContent::App { .. } => {
             unreachable!("painted by paint_pill_content")
         }
     };
@@ -1047,6 +1058,7 @@ pub fn paint_pill_content(ink: &Ink, c: &PillContent, w: f32, h: f32, s: &Scale)
         PillContent::Usage { app, text } => paint_usage(ink, app, text, w, h, s),
         PillContent::Capture { thumb, size } => paint_capture(ink, c, thumb.as_ref(), size, w, h, s),
         PillContent::Live { title, status, claude, state, action, .. } => paint_live(ink, c, (title, action), status, *claude, *state, w, h, s),
+        PillContent::App { title, text, status, icon, ring, .. } => paint_app(ink, c, icon.as_ref(), (title, text), status, *ring, w, h, s),
     }
 }
 
@@ -1289,6 +1301,50 @@ fn paint_live(ink: &Ink, c: &PillContent, (title, action): (&str, &str), status:
         let (stroke, inset) = (d(2.0), d(2.0));
         let edge = rect(inset, inset, w - 2.0 * inset, h - 2.0 * inset);
         ink.rrect_outline(edge, (h - 2.0 * inset) / 2.0, stroke, rgba(r, g, b, 1.0))?;
+    }
+    Ok(())
+}
+
+/// An app's icon in `dot`: its picture with softened corners, or its glyph (a bell without one)
+/// in the accent circle.
+pub fn paint_app_icon(ink: &Ink, icon: Option<&AppIcon>, dot: D2D_RECT_F, (r, g, b): (u8, u8, u8), glyph_dip: f32) -> Result<()> {
+    let side = dot.right - dot.left;
+    if let Some(AppIcon::Image { src, .. }) = icon {
+        let whole = rect(0.0, 0.0, src.size.0 as f32, src.size.1 as f32);
+        return ink.image_rounded(&src.px, src.size, whole, dot, side * 0.22);
+    }
+    let mark = match icon {
+        Some(AppIcon::Glyph(c)) => *c,
+        _ => glyph(Icon::Bell),
+    };
+    ink.rrect(dot, side / 2.0, rgba(r, g, b, 1.0))?;
+    ink.text(&mark.to_string(), dot, &TextStyle::new(Face::Icons, Weight::Regular, glyph_dip, white(1.0)).centered())
+}
+
+/// An app's item: the icon, the title and " · text" (the media pill's type), the status on the
+/// right, in the accent while it waits for the user, with the accent ring round the pill.
+#[allow(clippy::too_many_arguments)]
+fn paint_app(ink: &Ink, c: &PillContent, icon: Option<&AppIcon>, (title, text): (&str, &str), status: &str, ring: bool, w: f32, h: f32, s: &Scale) -> Result<()> {
+    let d = |v: f32| v * s.0;
+    let accent = c.accent();
+    let side = d(APP_PILL_ICON_DIP).round();
+    let dot = rect(d(4.0).round(), ((h - side) / 2.0).round(), side, side);
+    paint_app_icon(ink, icon, dot, accent, d(14.0))?;
+    let status_style = if ring { TextStyle::new(Face::Text, Weight::SemiBold, d(12.5), lighten(accent)) } else { TextStyle::new(Face::Text, Weight::Regular, d(12.5), white(0.7)).tabular() }.trailing();
+    let status_w = if status.is_empty() { 0.0 } else { ink.measure(status, &status_style)? + d(1.0) };
+    ink.text(status, rect(w - d(12.0) - status_w, 0.0, status_w, h), &status_style)?;
+    let title_style = TextStyle::new(Face::Text, Weight::SemiBold, d(12.5), white(1.0)).ellipsis();
+    let room = w - d(36.0) - d(20.0) - status_w;
+    let title_w = ink.measure(title, &title_style)?.min(room);
+    ink.text(title, rect(d(36.0), 0.0, title_w + d(2.0), h), &title_style)?;
+    if !text.is_empty() && room - title_w > d(30.0) {
+        let rest = TextStyle::new(Face::Text, Weight::Regular, d(12.5), white(0.7)).ellipsis();
+        ink.text(&format!(" · {text}"), rect(d(36.0) + title_w, 0.0, room - title_w, h), &rest)?;
+    }
+    if ring {
+        let (stroke, inset) = (d(2.0), d(2.0));
+        let edge = rect(inset, inset, w - 2.0 * inset, h - 2.0 * inset);
+        ink.rrect_outline(edge, (h - 2.0 * inset) / 2.0, stroke, rgba(accent.0, accent.1, accent.2, 1.0))?;
     }
     Ok(())
 }

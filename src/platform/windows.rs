@@ -114,6 +114,8 @@ pub enum UiEvent {
     Games,
     /// Dijital Denge's minute: the usage, and any limit crossed.
     Wellbeing,
+    /// An app sent something through the API (its mailbox has it).
+    Api,
 }
 
 /// Callback message of the tray icon.
@@ -137,6 +139,7 @@ pub const WM_CAPTURE: u32 = WM_APP + 16;
 pub const WM_WALLPAPER: u32 = WM_APP + 17;
 pub const WM_GAMES: u32 = WM_APP + 18;
 pub const WM_WELLBEING: u32 = WM_APP + 19;
+pub const WM_API: u32 = WM_APP + 20;
 
 static MAIN_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
 static TASKBAR_CREATED: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
@@ -222,6 +225,10 @@ pub fn post_games() {
 
 pub fn post_wellbeing() {
     post_main(WM_WELLBEING);
+}
+
+pub fn post_api() {
+    post_main(WM_API);
 }
 
 thread_local! {
@@ -446,8 +453,9 @@ extern "system" fn main_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LR
             None => LRESULT(0),
         },
         WM_EFFECTS | WM_MEDIA | WM_OUTPUT | WM_BUDS | WM_VOLUME | WM_SETTINGS_FILE | WM_MATCHES | WM_LYRICS | WM_PRIVACY | WM_HEADSETS | WM_WEATHER | WM_SHELF | WM_CAPTURE | WM_UPDATE
-        | WM_TASKBAR_ITEMS | WM_WALLPAPER | WM_GAMES | WM_WELLBEING => {
+        | WM_TASKBAR_ITEMS | WM_WALLPAPER | WM_GAMES | WM_WELLBEING | WM_API => {
             push_event(match msg {
+                WM_API => UiEvent::Api,
                 WM_WELLBEING => UiEvent::Wellbeing,
                 WM_GAMES => UiEvent::Games,
                 WM_WALLPAPER => UiEvent::Wallpaper,

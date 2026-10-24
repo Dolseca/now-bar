@@ -3041,3 +3041,15 @@ msgstr "Needs Windows 11"
 #: src/main.rs
 msgid "Now Bar, Windows 10 sürüm 1809 veya sonrasını gerektirir."
 msgstr "Now Bar needs Windows 10 version 1809 or later."
+
+#: src/render/card.rs
+msgid "Bildirim göstermek istiyor"
+msgstr "Wants to show notifications"
+
+#: src/render/card.rs
+msgid "Yalnızca güvendiğin uygulamalara izin ver."
+msgstr "Only allow apps you trust."
+
+#: src/render/card.rs
+msgid "Sustur"
+msgstr "Mute"

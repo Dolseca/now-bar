@@ -4,8 +4,8 @@
 use nowbar::activities::buds::{BudsSnapshot, NoiseControl};
 use nowbar::activities::media::{Caps, MediaSnapshot, Timeline};
 use nowbar::platform::audio::{list_outputs, output_volume, picker_order, OutputBus, OutputKind};
-use nowbar::activities::live::LiveState;
-use nowbar::render::card::{card_size_dip, card_tint, output_subline, paint_card, BriefCard, BriefMatchRow, BriefMusic, BriefWeather, CardContent, CardTeam, ClaudeAsk, ClaudeCard, LiveCard, LyricsView, MediaCard, MediaPage, OutputPage, OutputRow, ShelfCard, ShelfTile, SubTone, WeatherCard, GameCard, WellbeingApp, WellbeingCard, GAME_COVER_DIP};
+use nowbar::activities::live::{AppIcon, LiveState};
+use nowbar::render::card::{card_size_dip, card_tint, output_subline, paint_card, AppCard, BriefCard, BriefMatchRow, BriefMusic, BriefWeather, CardContent, CardTeam, ClaudeAsk, ClaudeCard, LiveCard, LyricsView, MediaCard, MediaPage, OutputPage, OutputRow, ShelfCard, ShelfTile, SubTone, WeatherCard, GameCard, WellbeingApp, WellbeingCard, GAME_COVER_DIP};
 use nowbar::activities::games::Store;
 use nowbar::activities::shelf::file_kind;
 use nowbar::activities::claude::StepKind;
@@ -40,6 +40,22 @@ fn media(accent: [u8; 3]) -> MediaSnapshot {
 }
 
 /// A stand-in thumbnail: a diagonal two-colour gradient, opaque (premultiplied BGRA).
+/// An app's card (the API), sent by a made-up "Ekin".
+fn app_card(title: &str, text: &str, status: &str, progress: Option<u8>, icon: Option<AppIcon>, buttons: &[&str], prompt: bool) -> CardContent {
+    CardContent::App(Box::new(AppCard {
+        key: 10,
+        title: title.into(),
+        sender: "Ekin · ekin.exe".into(),
+        text: text.into(),
+        status: status.into(),
+        progress,
+        icon,
+        accent: if prompt { (0x5D, 0x57, 0xD2) } else { (0x1D, 0xB9, 0x54) },
+        buttons: buttons.iter().map(|b| b.to_string()).collect(),
+        prompt,
+    }))
+}
+
 fn swatch(side: u32, from: [u8; 3], to: [u8; 3]) -> Crest {
     let mut px = Vec::with_capacity((side * side * 4) as usize);
     for y in 0..side {
@@ -253,6 +269,10 @@ fn main() -> Result<()> {
         CardContent::Claude(Box::new(claude_card(LiveState::Wait, false, true, true))),
         CardContent::Claude(Box::new(claude_card(LiveState::Done, false, false, true))),
         CardContent::Live(LiveCard { key: 2, title: "cargo build --release".into(), text: "nowbar-settings derleniyor".into(), status: "%40".into(), progress: Some(40), claude: false, state: LiveState::Run }),
+        app_card("Deploy hazır", "main dalı staging'e gönderilsin mi? Testler geçti, 3 commit.", "", None, Some(AppIcon::Glyph('\u{E8B7}')), &["Hayır", "Gönder"], false),
+        app_card("Yedekleme", "Belgeler klasörü", "%40", Some(40), Some(AppIcon::Image { id: 1, src: swatch(s.px(40.0) as u32, [0x2F, 0x80, 0xED], [0x56, 0xCC, 0xF2]) }), &["Durdur"], false),
+        app_card("Ekin", r"C:\Apps\Ekin\ekin.exe", "", None, Some(AppIcon::Image { id: 2, src: swatch(s.px(40.0) as u32, [0xF2, 0x99, 0x4A], [0xEB, 0x57, 0x57]) }), &[], true),
+        app_card("Yedekleme bitti", &"12 dosya kopyalandı, 48 MB; eski yedeklerden üçü silindi ve disk alanı açıldı. ".repeat(2), "", None, None, &[], false),
     ];
 
     let text = TextKit::new()?;

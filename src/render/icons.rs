@@ -41,10 +41,12 @@ pub enum Icon {
     TextDoc,
     Code,
     Download,
+    /// An app's notification without an icon of its own.
+    Bell,
 }
 
 impl Icon {
-    pub const ALL: [Icon; 37] = [
+    pub const ALL: [Icon; 38] = [
         Icon::Play,
         Icon::Pause,
         Icon::Prev,
@@ -82,6 +84,7 @@ impl Icon {
         Icon::TextDoc,
         Icon::Code,
         Icon::Download,
+        Icon::Bell,
     ];
 }
 
@@ -126,6 +129,7 @@ pub fn glyph(i: Icon) -> char {
         Icon::TextDoc => '\u{F000}',
         Icon::Code => '\u{E943}',
         Icon::Download => '\u{E896}',
+        Icon::Bell => '\u{EA8F}',
     }
 }
 

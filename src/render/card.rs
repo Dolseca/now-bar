@@ -9,7 +9,8 @@ use super::gfx::{new_surface, paint_surface, rect, rgba, white, Face, Gfx, Ink, 
 use super::icons::{glyph, Icon};
 use super::layout::Scale;
 use super::color::media_gradient;
-use super::pill::{alert_style, lighten, paint_live_mark, store_accent, timer_accent, BUDS_ACCENT, CLAUDE_ACCENT, WELLBEING_ACCENT, WELLBEING_GLYPH};
+use super::pill::{alert_style, lighten, paint_app_icon, paint_live_mark, store_accent, timer_accent, BUDS_ACCENT, CLAUDE_ACCENT, WELLBEING_ACCENT, WELLBEING_GLYPH};
+use crate::activities::live::AppIcon;
 use crate::activities::games::Store;
 use crate::activities::weather_alert::AlertKind;
 use crate::activities::claude::StepKind;
@@ -195,9 +196,41 @@ pub fn media_app_name_width_dip(chip_w_dip: Option<f32>) -> f32 {
     (right - 42.0).max(0.0)
 }
 
+/// An app's item (the API): its icon and title, who sent it (the name it gave and the exe it
+/// runs from, which it can't change), its text, progress and buttons; or, `prompt`, the question
+/// whether it may show anything at all (`text`: the exe's path).
+#[derive(Clone, Debug, PartialEq)]
+pub struct AppCard {
+    pub key: u32,
+    pub title: String,
+    pub sender: String,
+    pub text: String,
+    /// "%40", "4:12", "Bitti"; empty for a notification.
+    pub status: String,
+    pub progress: Option<u8>,
+    /// A picture at [`APP_CARD_ICON_DIP`]'s pixels, or a glyph.
+    pub icon: Option<AppIcon>,
+    pub accent: (u8, u8, u8),
+    pub buttons: Vec<String>,
+    pub prompt: bool,
+}
+
+/// An app's icon on its card, in DIP.
+pub const APP_CARD_ICON_DIP: f32 = 40.0;
+
+/// The lines an app's text takes on its card (up to three; about 44 characters a line, the
+/// painter cuts what doesn't fit).
+pub fn app_text_lines(text: &str) -> u8 {
+    match text.chars().count() {
+        0 => 0,
+        n => n.div_ceil(44).clamp(1, 3) as u8,
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum CardContent {
     Claude(Box<ClaudeCard>),
+    App(Box<AppCard>),
     Live(LiveCard),
     Timer(TimerCard),
     Stopwatch(StopwatchCard),
@@ -514,6 +547,13 @@ pub enum CardAction {
     ClaudeAllow(u32),
     ClaudeDeny(u32),
     ClaudeFocus,
+    /// An app card's button (the item it was painted for, the button's place).
+    AppButton(u32, u8),
+    /// A prompt's answers (the item it was painted for).
+    AppAllow(u32),
+    AppDeny(u32),
+    /// "Sustur": the app may show nothing more.
+    AppMute(u32),
     /// A match row of the brief (its index).
     BriefMatch(usize),
     /// The brief's music play / pause.
@@ -529,6 +569,15 @@ pub fn card_size_dip(c: &CardContent) -> (f32, f32) {
         // The footer only with a button in it.
         CardContent::Claude(c) if c.can_focus || c.ask.as_ref().is_some_and(|a| a.answerable) => (370.0, 236.0),
         CardContent::Claude(_) => (370.0, 192.0),
+        CardContent::App(a) if a.prompt => (370.0, 236.0),
+        // The header, the text, the bar, the footer.
+        CardContent::App(a) => {
+            let text = match app_text_lines(&a.text) {
+                0 => 0.0,
+                n => n as f32 * APP_LINE + 4.0,
+            };
+            (370.0, APP_BODY_TOP + text + if a.progress.is_some() { 14.0 } else { 0.0 } + 14.0 + 34.0 + 12.0)
+        }
         CardContent::Picker(_) => (370.0, 260.0),
         CardContent::Media(_) => (340.0, 350.0),
         // The noise control row once the Buds have said their mode.
@@ -582,11 +631,15 @@ const HOURS_PANEL: f32 = 100.0;
 /// The weather card's alert line under the hours.
 const WEATHER_ALERT_ROW: f32 = 34.0;
 
+/// Where an app card's text starts, and a line of it (DIP).
+const APP_BODY_TOP: f32 = 74.0;
+const APP_LINE: f32 = 18.0;
+
 /// Corner radius in DIP: one-row cards are full pills (One UI), taller cards use 36 DIP.
 pub fn card_radius_dip(c: &CardContent) -> f32 {
     match c {
         CardContent::Timer(_) | CardContent::Stopwatch(_) | CardContent::Live(_) => card_size_dip(c).1 / 2.0,
-        CardContent::Claude(_) => 36.0,
+        CardContent::Claude(_) | CardContent::App(_) => 36.0,
         CardContent::Picker(_) | CardContent::Buds(_) | CardContent::Weather(_) | CardContent::Shelf(_) | CardContent::Brief(_) | CardContent::Game(_) | CardContent::Wellbeing(_) => 36.0,
         CardContent::Media(_) | CardContent::Match(_) => 32.0,
     }
@@ -624,6 +677,7 @@ pub fn card_accent(c: &CardContent) -> (u8, u8, u8) {
         CardContent::Timer(_) | CardContent::Stopwatch(_) | CardContent::Picker(_) | CardContent::Shelf(_) => timer_accent(),
         CardContent::Live(l) if l.claude => CLAUDE_ACCENT,
         CardContent::Claude(_) => CLAUDE_ACCENT,
+        CardContent::App(a) => a.accent,
         CardContent::Live(_) => timer_accent(),
         CardContent::Media(card) => (card.m.accent[0], card.m.accent[1], card.m.accent[2]),
         CardContent::Buds(_) => BUDS_ACCENT,
@@ -730,6 +784,7 @@ pub fn paint_card(ink: &Ink, c: &CardContent, s: &Scale, w: f32, h: f32) -> Resu
         CardContent::Brief(b) => p.brief(b),
         CardContent::Live(l) => p.live(l),
         CardContent::Claude(c) => p.claude(c),
+        CardContent::App(a) => p.app(a),
         CardContent::Match(m) => p.match_card(m),
         CardContent::Shelf(c) => {
             out.tiles = shelf_layout(c.tiles.len(), s).tiles;
@@ -935,6 +990,72 @@ impl Painter<'_, '_> {
             let deny = rect(allow.left - d(8.0) - d(84.0), fy, d(84.0), d(34.0));
             self.chip(deny, tr("Reddet"), white(0.12), CardAction::ClaudeDeny(*key))?;
             self.chip(allow, tr("İzin ver"), rgba(r, g, b, 1.0), CardAction::ClaudeAllow(*key))?;
+        }
+        Ok(())
+    }
+
+    /// An app's card, laid out as Claude's: the icon and the title over who sent it, the ×; the
+    /// text, the bar; "Sustur" on the left of the footer and the app's buttons on the right, the
+    /// last in its accent. A prompt has the exe's path in the panel and Reddet / İzin ver.
+    fn app(&mut self, c: &AppCard) -> Result<()> {
+        let d = |v: f32| v * self.s.0;
+        let side = d(APP_CARD_ICON_DIP).round();
+        paint_app_icon(self.ink, c.icon.as_ref(), rect(d(20.0).round(), d(18.0).round(), side, side), c.accent, d(20.0))?;
+        let text_x = d(72.0);
+        let text_w = self.w - text_x - d(60.0);
+        let title = TextStyle::new(Face::Text, Weight::SemiBold, d(16.0), white(1.0)).top().ellipsis();
+        self.ink.text(&c.title, rect(text_x, d(17.0), text_w, d(22.0)), &title)?;
+        let (line, style) = if c.prompt {
+            (tr("Bildirim göstermek istiyor").to_string(), TextStyle::new(Face::Text, Weight::SemiBold, d(12.5), lighten(c.accent)))
+        } else if c.status.is_empty() {
+            (c.sender.clone(), TextStyle::new(Face::Text, Weight::Regular, d(12.5), white(0.7)))
+        } else {
+            (format!("{} · {}", c.sender, c.status), TextStyle::new(Face::Text, Weight::Regular, d(12.5), white(0.7)).tabular())
+        };
+        self.ink.text(&line, rect(text_x, d(40.0), text_w, d(18.0)), &style.top().ellipsis())?;
+        let close = rect(self.w - d(54.0), d(18.0), d(40.0), d(40.0));
+        self.ink.text(&glyph(Icon::Close).to_string(), close, &TextStyle::new(Face::Icons, Weight::Regular, d(15.0), white(0.8)).centered())?;
+        self.hits.push((close, CardAction::LiveClose));
+        let (r, g, b) = c.accent;
+
+        if c.prompt {
+            let panel = rect(d(16.0), d(APP_BODY_TOP), self.w - d(32.0), d(102.0));
+            self.ink.rrect(panel, d(22.0), white(0.06))?;
+            let (px, pw) = (panel.left + d(16.0), panel.right - panel.left - d(32.0));
+            self.ink.text(&c.sender, rect(px, panel.top + d(14.0), pw, d(18.0)), &TextStyle::new(Face::Text, Weight::SemiBold, d(13.0), white(1.0)).top().ellipsis())?;
+            self.ink.text(&c.text, rect(px, panel.top + d(36.0), pw, d(34.0)), &TextStyle::new(Face::Text, Weight::Regular, d(12.5), white(0.85)).top().wrap().ellipsis())?;
+            self.ink.text(tr("Yalnızca güvendiğin uygulamalara izin ver."), rect(px, panel.top + d(76.0), pw, d(16.0)), &TextStyle::new(Face::Text, Weight::Regular, d(12.0), white(0.55)).top().ellipsis())?;
+            let fy = panel.bottom + d(14.0);
+            let allow = rect(self.w - d(16.0) - d(96.0), fy, d(96.0), d(34.0));
+            let deny = rect(allow.left - d(8.0) - d(84.0), fy, d(84.0), d(34.0));
+            self.chip(deny, tr("Reddet"), white(0.12), CardAction::AppDeny(c.key))?;
+            return self.chip(allow, tr("İzin ver"), rgba(r, g, b, 1.0), CardAction::AppAllow(c.key));
+        }
+
+        let mut y = d(APP_BODY_TOP);
+        let lines = app_text_lines(&c.text) as f32;
+        if lines > 0.0 {
+            let body = TextStyle::new(Face::Text, Weight::Regular, d(13.0), white(0.9)).top().wrap().ellipsis();
+            self.ink.text(&c.text, rect(d(20.0), y, self.w - d(40.0), d(lines * APP_LINE)), &body)?;
+            y += d(lines * APP_LINE + 4.0);
+        }
+        if let Some(p) = c.progress {
+            let bar = d(4.0).round();
+            let (x0, x1) = (d(20.0), self.w - d(20.0));
+            self.ink.rrect(rect(x0, y + d(5.0), x1 - x0, bar), bar / 2.0, white(0.18))?;
+            self.ink.rrect(rect(x0, y + d(5.0), ((x1 - x0) * p.min(100) as f32 / 100.0).max(bar), bar), bar / 2.0, lighten(c.accent))?;
+            y += d(14.0);
+        }
+        let fy = y + d(14.0);
+        self.chip(rect(d(16.0), fy, d(84.0), d(34.0)), tr("Sustur"), white(0.12), CardAction::AppMute(c.key))?;
+        // Right to left: the last button is the one in the accent.
+        let chip_text = TextStyle::new(Face::Text, Weight::SemiBold, d(13.5), white(1.0));
+        let mut right = self.w - d(16.0);
+        for (i, label) in c.buttons.iter().enumerate().rev() {
+            let w = (self.ink.measure(label, &chip_text)? + d(32.0)).max(d(72.0));
+            let fill = if i + 1 == c.buttons.len() { rgba(r, g, b, 1.0) } else { white(0.12) };
+            self.chip(rect(right - w, fy, w, d(34.0)), label, fill, CardAction::AppButton(c.key, i as u8))?;
+            right -= w + d(8.0);
         }
         Ok(())
     }
@@ -1976,6 +2097,39 @@ mod tests {
         let (c, t) = (l.closes[0], l.tiles[0]);
         assert!((c.right - (t.right - 5.0 * 1.25)).abs() <= 1.0 && (c.top - (t.top + 5.0 * 1.25)).abs() <= 1.0, "{c:?} in {t:?}");
         assert!(((c.right - c.left) - 20.0 * 1.25).abs() <= 1.0, "a 20 DIP button");
+    }
+
+    fn app_card() -> AppCard {
+        AppCard {
+            key: 1,
+            title: "Yedekleme".into(),
+            sender: "Ekin · ekin.exe".into(),
+            text: String::new(),
+            status: String::new(),
+            progress: None,
+            icon: None,
+            accent: (0x1D, 0xB9, 0x54),
+            buttons: Vec::new(),
+            prompt: false,
+        }
+    }
+
+    #[test]
+    fn an_app_card_is_as_tall_as_its_parts() {
+        let h = |c: AppCard| card_size_dip(&CardContent::App(Box::new(c))).1;
+        let bare = h(app_card());
+        assert_eq!(bare, 134.0, "the header and the footer, 12 DIP under its chips as Claude's");
+        assert_eq!(h(AppCard { text: "kısa".into(), ..app_card() }), bare + 22.0, "one line");
+        assert_eq!(h(AppCard { text: "a".repeat(120), ..app_card() }), bare + 58.0, "three lines at most");
+        assert_eq!(h(AppCard { progress: Some(40), ..app_card() }), bare + 14.0);
+        assert_eq!(card_size_dip(&CardContent::App(Box::new(AppCard { prompt: true, ..app_card() }))), (370.0, 236.0), "as Claude's ask");
+        assert_eq!(card_radius_dip(&CardContent::App(Box::new(app_card()))), 36.0);
+        assert_eq!(card_accent(&CardContent::App(Box::new(app_card()))), (0x1D, 0xB9, 0x54));
+    }
+
+    #[test]
+    fn app_text_lines_follow_its_length() {
+        assert_eq!((app_text_lines(""), app_text_lines("kısa"), app_text_lines(&"ş".repeat(60)), app_text_lines(&"a".repeat(500))), (0, 1, 2, 3));
     }
 
     #[test]

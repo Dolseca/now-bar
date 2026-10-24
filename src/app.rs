@@ -52,7 +52,12 @@ use crate::render::island::Island;
 use crate::activities::capture::{size_text, CAPTURE_MOMENT_MS};
 use crate::activities::claude::{done_status, step_label, task_progress};
 use crate::platform::captures::{Capture, CaptureMailbox};
-use crate::activities::live::{live_key, pill_status, LiveSet, LiveState};
+use crate::activities::live::{live_key, pill_status, push_id_ok, AppIcon, AppMeta, LiveItem, LiveSet, LiveState};
+use crate::activities::api::ApiMailbox;
+use crate::activities::api_desk::Desk;
+use crate::platform::api_server::ApiServer;
+use crate::render::card::{AppCard, APP_CARD_ICON_DIP};
+use crate::render::pill::APP_PILL_ICON_DIP;
 use crate::platform::updater::{state as updater_state, Progress, UpdateMailbox, Updater, VERSION};
 use crate::update::{newer, UpdateState};
 use crate::activities::weather_worker::{WeatherMailbox, WeatherWorker};
@@ -686,8 +691,15 @@ pub struct App {
     alert_watch: AlertWatch,
     alerts: std::collections::VecDeque<Alert>,
     alert_moment: Option<(Alert, u64)>,
-    /// What other programs sent (`nowbar.exe push`, Claude Code's hooks).
+    /// What other programs sent (`nowbar.exe push`, Claude Code's hooks, apps through the API).
     live: LiveSet,
+    /// The API: its listener while it is on, what it hands over, and the prompts, waiting
+    /// requests and clicks.
+    api_server: Option<ApiServer>,
+    api_mailbox: ApiMailbox,
+    api: Desk,
+    /// Apps' pictures scaled to what they are drawn at, per (picture, pixels).
+    app_icon_px: std::cell::RefCell<HashMap<(u64, u32), Option<Crest>>>,
     /// The apps using the microphone or the camera, and when that list last changed (ms).
     privacy: Vec<InUse>,
     privacy_ms: u64,
@@ -889,6 +901,10 @@ impl App {
             alerts: Default::default(),
             alert_moment: None,
             live: LiveSet::default(),
+            api_server: None,
+            api_mailbox: ApiMailbox::default(),
+            api: Desk::default(),
+            app_icon_px: Default::default(),
             privacy: Vec::new(),
             privacy_ms: 0,
             privacy_mailbox,
@@ -925,6 +941,7 @@ impl App {
             items_mailbox,
         };
         app.move_hook.follow_foreground();
+        app.follow_api();
         app.fullscreen = app.fullscreen_hides();
         if std::env::args().any(|a| a == "--demo") {
             app.start_timer(60_000);
@@ -1156,7 +1173,8 @@ impl App {
         if let Some((_, at)) = self.capture.as_ref().filter(|_| s.capture_moment) {
             p.push(Presence { kind: ActivityKind::Capture, state: PresenceState::Moment, changed_ms: *at });
         }
-        for i in self.live.items().iter().filter(|_| s.live_enabled) {
+        // An app's items follow the API's switch; the rest, the live activities'.
+        for i in self.live.items().iter().filter(|i| if i.app.is_some() { s.api_enabled } else { s.live_enabled }) {
             let state = match i.state {
                 LiveState::Wait => PresenceState::Waiting,
                 LiveState::Done => PresenceState::Done,
@@ -1539,17 +1557,9 @@ impl App {
                 PillContent::WeatherAlert { kind: a.kind, head: head.to_string(), detail }
             }),
             ActivityKind::Capture => self.capture.as_ref().map(|(c, _)| PillContent::Capture { thumb: c.thumb.clone(), size: size_text(c.size) }),
-            ActivityKind::Live(key) => self.live.get(key).map(|i| PillContent::Live {
-                key,
-                title: i.title.clone(),
-                status: pill_status(i, now),
-                claude: i.claude,
-                state: i.state,
-                action: match (i.claude, i.state, i.info.steps.first()) {
-                    (true, LiveState::Run, Some(step)) => step_label(step),
-                    (true, LiveState::Wait, _) => i.info.ask.as_ref().map(|a| a.detail.clone()).unwrap_or_default(),
-                    _ => String::new(),
-                },
+            ActivityKind::Live(key) => self.live.get(key).map(|i| match &i.app {
+                Some(app) => self.app_pill(i, app, now),
+                None => Self::live_pill(i, now),
             }),
             ActivityKind::Headset(id) => self
                 .headsets
@@ -1642,6 +1652,9 @@ impl App {
             OpenCard::Activity(ActivityKind::Live(key)) => self.live.get(key).map(|i| {
                 if i.claude {
                     return CardContent::Claude(Box::new(self.claude_card(i, now)));
+                }
+                if let Some(app) = &i.app {
+                    return CardContent::App(Box::new(self.app_card(i, app, now)));
                 }
                 CardContent::Live(LiveCard {
                     key,
@@ -1952,6 +1965,7 @@ impl App {
             _ => None,
         };
         self.live.expire(now, open_live);
+        self.api.expire(&mut self.live, now);
         self.next_alert(now);
         let open_done_card = self.check_done(now);
         if let Some((kind, _)) = self.user_front {
@@ -2383,7 +2397,28 @@ impl App {
             }
             CardAction::LiveClose => {
                 if let Some(OpenCard::Activity(ActivityKind::Live(key))) = self.open {
+                    // An app hears it was dismissed; its prompt's × is a "not now".
+                    self.api.dismissed(key, &mut self.live, now);
                     self.live.remove(key);
+                    self.api.expire(&mut self.live, now);
+                }
+            }
+            CardAction::AppButton(painted, i) => {
+                if let Some(key) = self.open_live(painted) {
+                    if let Some(uri) = self.api.click(key, i, &mut self.live, now) {
+                        open_url(&uri);
+                    }
+                }
+            }
+            CardAction::AppAllow(painted) | CardAction::AppDeny(painted) => {
+                let allow = matches!(action, CardAction::AppAllow(_));
+                if let Some(answer) = self.open_live(painted).and_then(|key| self.api.answer(key, allow, &mut self.live, now)) {
+                    self.remember_app(answer);
+                }
+            }
+            CardAction::AppMute(painted) => {
+                if let Some(answer) = self.open_live(painted).and_then(|key| self.api.mute(key, &mut self.live)) {
+                    self.remember_app(answer);
                 }
             }
             CardAction::TimerAddMinute => {
@@ -2566,12 +2601,132 @@ impl App {
         Ok(())
     }
 
+    /// The API listens while the Now Bar and the API are both on; off, it closes the port and
+    /// whatever waits hears so.
+    fn follow_api(&mut self) {
+        let s = settings::current();
+        match (s.enabled && s.api_enabled, self.api_server.is_some()) {
+            (true, false) => self.api_server = ApiServer::start(self.api_mailbox.clone(), crate::platform::windows::post_api),
+            (false, true) => {
+                self.api_server = None;
+                self.api.close(&mut self.live);
+            }
+            _ => {}
+        }
+    }
+
+    /// Requests from apps, through the API.
+    fn take_api(&mut self) -> Result<()> {
+        use crate::activities::api::ApiWhat;
+        let calls = self.api_mailbox.lock().map(|mut m| std::mem::take(&mut *m)).unwrap_or_default();
+        let (now, s) = (now_ms(), settings::current());
+        for call in calls {
+            // The name, the exe and the id; never the text.
+            let what = match &call.what {
+                ApiWhat::Show { req, .. } => format!("{} {}", if matches!(req.kind, crate::activities::api::Kind::Notify { .. }) { "notify" } else { "activity" }, req.id.as_deref().unwrap_or("")),
+                ApiWhat::Events { .. } => "events".into(),
+            };
+            log(&format!("api: {} ({}) {what}", call.caller.app, call.caller.exe_file()));
+            self.api.take(call, &mut self.live, &s.api_apps, s.enabled && s.api_enabled, now);
+        }
+        self.refresh()
+    }
+
+    /// The user's answer to an app (a prompt, "Sustur"), kept in the settings.
+    fn remember_app(&mut self, a: crate::settings::ApiApp) {
+        log(&format!("api: {} {} ({})", if a.allowed { "allowed" } else { "denied" }, a.name, a.exe.rsplit('\\').next().unwrap_or("")));
+        let mut s = (*settings::current()).clone();
+        s.api_apps.push(a);
+        let s = s.sanitized();
+        if let Err(e) = settings::save(&s) {
+            log(&format!("settings save: {e:?}"));
+        }
+        settings::install(s);
+    }
+
+    /// An app's picture at `dip` on `scale`, scaled once; a glyph as it is.
+    fn app_icon(&self, icon: Option<&AppIcon>, dip: f32, scale: f32) -> Option<AppIcon> {
+        let Some(AppIcon::Image { id, src }) = icon else { return icon.cloned() };
+        let px = (dip * scale).round() as u32;
+        let mut cache = self.app_icon_px.borrow_mut();
+        if cache.len() > 64 {
+            cache.clear();
+        }
+        cache.entry((*id, px)).or_insert_with(|| crate::render::crest::fit(src, px)).clone().map(|src| AppIcon::Image { id: *id, src })
+    }
+
+    /// An app's item's right-hand status: a prompt asks, a notification says nothing, an
+    /// activity says where it is.
+    fn app_status(i: &LiveItem, app: &AppMeta, now: u64) -> String {
+        match i.state {
+            _ if app.prompt => tr("İzin istiyor").to_string(),
+            _ if app.life_ms.is_some() => String::new(),
+            LiveState::Run => pill_status(i, now),
+            LiveState::Wait => tr("Bekliyor").to_string(),
+            LiveState::Done => tr("Bitti").to_string(),
+            LiveState::Clear => String::new(),
+        }
+    }
+
+    fn app_pill(&self, i: &LiveItem, app: &AppMeta, now: u64) -> PillContent {
+        PillContent::App {
+            key: i.key,
+            title: i.title.clone(),
+            text: i.text.clone(),
+            status: Self::app_status(i, app, now),
+            icon: self.app_icon(app.icon.as_ref(), APP_PILL_ICON_DIP, self.ui.pill_scale.0),
+            accent: app.accent.unwrap_or_else(crate::render::pill::timer_accent),
+            ring: app.prompt || (i.state == LiveState::Wait && app.life_ms.is_none()),
+        }
+    }
+
+    fn app_card(&self, i: &LiveItem, app: &AppMeta, now: u64) -> AppCard {
+        AppCard {
+            key: i.key,
+            title: i.title.clone(),
+            sender: app.sender(),
+            // A prompt shows where the app really runs from.
+            text: if app.prompt { app.exe.clone() } else { i.text.clone() },
+            status: if app.prompt { String::new() } else { Self::app_status(i, app, now) },
+            progress: i.progress,
+            icon: self.app_icon(app.icon.as_ref(), APP_CARD_ICON_DIP, self.ui.card_scale.0),
+            accent: app.accent.unwrap_or_else(crate::render::pill::timer_accent),
+            buttons: app.buttons.iter().map(|b| b.label.clone()).collect(),
+            prompt: app.prompt,
+        }
+    }
+
+    /// A script's or a Claude session's pill.
+    fn live_pill(i: &LiveItem, now: u64) -> PillContent {
+        PillContent::Live {
+            key: i.key,
+            title: i.title.clone(),
+            status: pill_status(i, now),
+            claude: i.claude,
+            state: i.state,
+            action: match (i.claude, i.state, i.info.steps.first()) {
+                (true, LiveState::Run, Some(step)) => step_label(step),
+                (true, LiveState::Wait, _) => i.info.ask.as_ref().map(|a| a.detail.clone()).unwrap_or_default(),
+                _ => String::new(),
+            },
+        }
+    }
+
+    /// The live item whose card is open and was painted as `painted`.
+    fn open_live(&self, painted: u32) -> Option<u32> {
+        match self.open {
+            Some(OpenCard::Activity(ActivityKind::Live(key))) if key == painted => Some(key),
+            _ => None,
+        }
+    }
+
     /// Commands from `nowbar.exe push` and the like.
     fn take_ipc(&mut self) -> Result<()> {
         let now = now_ms();
         for c in crate::platform::ipc::take() {
             match c {
-                crate::platform::ipc::Command::Live(m) if settings::current().live_enabled => self.live.apply(*m, now),
+                // The API's ids are the apps' own.
+                crate::platform::ipc::Command::Live(m) if settings::current().live_enabled && push_id_ok(&m.id) => self.live.apply(*m, now),
                 crate::platform::ipc::Command::Live(_) => {}
                 crate::platform::ipc::Command::Update => self.updater.apply(),
                 crate::platform::ipc::Command::AskGone { id } => self.live.drop_ask(&id),
@@ -2662,6 +2817,7 @@ impl App {
         if new.accent_from_wallpaper && !old.accent_from_wallpaper {
             self.check_wallpaper();
         }
+        self.follow_api();
         if needs_rebuild(&old, &new) {
             return self.rebuild_or_retry();
         }
@@ -3520,6 +3676,7 @@ impl App {
             UiEvent::Wallpaper => self.repaint(),
             UiEvent::Games => self.take_games(),
             UiEvent::Wellbeing => self.take_wellbeing(),
+            UiEvent::Api => self.take_api(),
             UiEvent::EffectsChanged => self.ui.morph.set_blur(effects_enabled()),
             UiEvent::Timer(TIMER_OUTSIDE) if !self.card_pinned && self.clicked_outside() => self.close_card(),
             UiEvent::Pill(PillEvent::Hover(over)) | UiEvent::Card(CardEvent::Hover(over)) => {
