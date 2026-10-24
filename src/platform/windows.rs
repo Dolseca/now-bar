@@ -683,7 +683,8 @@ impl CardWindow {
             let on: i32 = 1;
             let corners = DWMWCP_DONOTROUND;
             let no_border: u32 = 0xFFFF_FFFE; // DWMWA_COLOR_NONE
-            // Windows 11 only: on Windows 10 they fail, and the card keeps the flat material.
+            // Windows 11 only: on Windows 10 they fail, and the card keeps the flat material
+            // (os::card_blur).
             let _ = DwmSetWindowAttribute(hwnd, DWMWA_USE_HOSTBACKDROPBRUSH, &on as *const i32 as _, 4);
             let _ = DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &corners as *const _ as _, 4);
             let _ = DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &no_border as *const u32 as _, 4);

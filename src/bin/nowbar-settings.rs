@@ -407,6 +407,7 @@ fn fill(ui: &SettingsWindow, s: &Settings, live_apps: &[String]) {
     st.set_cover_color(s.use_cover_color);
     st.set_card_size(if s.card_size == CardSize::Compact { 0 } else { 1 });
     st.set_card_blur(s.card_blur);
+    st.set_blur_available(nowbar::platform::os::card_blur(nowbar::platform::os::generation(), true, true));
     st.set_darkness(s.material_darkness_pct as f32);
     st.set_saturation(s.material_saturation_pct as f32);
     st.set_speed(index_of(&[AnimationSpeed::Off, AnimationSpeed::Slow, AnimationSpeed::Normal, AnimationSpeed::Fast], &s.animation_speed, 2));

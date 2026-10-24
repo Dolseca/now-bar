@@ -37,6 +37,7 @@ use crate::activities::lyrics::{line_at, Lines};
 use crate::activities::lyrics_worker::{LyricsMailbox, LyricsWorker, Track};
 use crate::activities::power::{power_moment, PowerMoment, POWER_MOMENT_MS};
 use crate::activities::{add_idle, buds_front_ms, has_card, media_paused_keep_ms, settings_page_for, stack_order, BUDS_MODE_MOMENT_MS, ActivityKind, Presence, PresenceState, ALERT_MOMENT_MS, GAME_MOMENT_MS, RAIN_MOMENT_MS, USAGE_MOMENT_MS, VOLUME_MOMENT_MS};
+use crate::platform::os;
 use crate::platform::power::{self, Power};
 use crate::platform::privacy::{self, InUse, PrivacyMailbox};
 use crate::platform::bt_battery::{self, Headset, HeadsetMailbox};
@@ -464,9 +465,11 @@ struct StopwatchSlot {
     changed_ms: u64,
 }
 
-/// Blur when Windows' transparency effects are on and the setting allows it.
+/// Blur when Windows' transparency effects are on and the setting allows it, on Windows 11
+/// ([`os::card_blur`]: Windows 10 keeps the flat material).
 fn effects_enabled() -> bool {
-    settings::current().card_blur && UISettings::new().and_then(|u| u.AdvancedEffectsEnabled()).unwrap_or(true)
+    let transparency = UISettings::new().and_then(|u| u.AdvancedEffectsEnabled()).unwrap_or(true);
+    os::card_blur(os::generation(), settings::current().card_blur, transparency)
 }
 
 /// Starts the settings window (`nowbar-settings.exe` next to this exe); it keeps one instance.

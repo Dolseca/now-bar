@@ -3033,3 +3033,7 @@ msgstr "Change"
 #: src/render/pill.rs
 msgid "{} dosya"
 msgstr "{} files"
+
+#: ui/pages.slint
+msgid "Windows 11 gerekir"
+msgstr "Needs Windows 11"

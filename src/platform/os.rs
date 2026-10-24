@@ -41,6 +41,12 @@ pub fn dark_mode_attribute(build: u32) -> u32 {
     }
 }
 
+/// The card's material is the blurred desktop when the `setting` and Windows' `transparency`
+/// effects allow it and Windows can give it the host backdrop; else flat.
+pub fn card_blur(generation: Generation, setting: bool, transparency: bool) -> bool {
+    generation == Generation::Windows11 && setting && transparency
+}
+
 fn parse_build(s: &str) -> Option<u32> {
     s.trim_matches(|c: char| c.is_whitespace() || c == '\0').parse().ok()
 }
@@ -99,6 +105,16 @@ mod tests {
         assert_eq!(dark_mode_attribute(18363), 19);
         assert_eq!(dark_mode_attribute(19041), 20);
         assert_eq!(dark_mode_attribute(22631), 20);
+    }
+
+    /// The card's blur needs DWMWA_USE_HOSTBACKDROPBRUSH: a desktop window gets the host
+    /// backdrop only from Windows 11 on.
+    #[test]
+    fn the_card_blurs_on_windows_11_only() {
+        assert!(card_blur(Generation::Windows11, true, true));
+        assert!(!card_blur(Generation::Windows10, true, true));
+        assert!(!card_blur(Generation::Windows11, false, true), "the setting off");
+        assert!(!card_blur(Generation::Windows11, true, false), "Windows' transparency effects off");
     }
 
     #[test]

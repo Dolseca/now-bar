@@ -337,6 +337,7 @@ export component AppearanceInspector inherits VerticalLayout {
         title: @tr("Kart");
         IRow {
             label: @tr("Bulanıklık");
+            note: Store.blur-available ? "" : @tr("Windows 11 gerekir");
             Toggle {
                 checked <=> Store.card-blur;
                 toggled => { Ui.changed(); }

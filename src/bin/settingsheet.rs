@@ -1,6 +1,7 @@
 //! Dev tool: draws the settings window off-screen (software renderer, no window opens) with
 //! sample lists, one PNG per page and one scrolled to each page's last section.
-//! Usage: `settingsheet [out-dir] [dark|light] [width] [height] [--en]`.
+//! Usage: `settingsheet [out-dir] [dark|light] [width] [height] [--en] [--win10]`; `--win10`
+//! shows what Windows 10 lacks (with `NOWBAR_FONTS=win10` for its fonts).
 
 use std::time::Duration;
 
@@ -86,7 +87,8 @@ fn search_hits(q: &str) -> Vec<Hit> {
 
 fn main() {
     let english = std::env::args().any(|a| a == "--en");
-    let mut args = std::env::args().skip(1).filter(|a| a != "--en");
+    let win10 = std::env::args().any(|a| a == "--win10");
+    let mut args = std::env::args().skip(1).filter(|a| a != "--en" && a != "--win10");
     let out = args.next().unwrap_or_else(|| std::env::temp_dir().join("sheet").to_string_lossy().into_owned());
     let dark = args.next().as_deref() != Some("light");
     let width: f32 = args.next().and_then(|w| w.parse().ok()).unwrap_or(1240.0);
@@ -101,6 +103,7 @@ fn main() {
     ui.global::<Theme>().set_dark(dark);
     nowbar::set_slint_faces!(ui.global::<Theme>());
     sample(&ui);
+    ui.global::<Store>().set_blur_available(!win10);
     ui.show().expect("show");
     let settle = Duration::from_millis(500);
     for page in 0..9 {

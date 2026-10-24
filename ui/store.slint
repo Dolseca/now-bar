@@ -86,6 +86,8 @@ export global Store {
     /// 0 compact, 1 large.
     in-out property <int> card-size: 1;
     in-out property <bool> card-blur: true;
+    /// Windows 10 can't blur behind the card (os::card_blur).
+    in-out property <bool> blur-available: true;
     in-out property <float> darkness: 35;
     in-out property <float> saturation: 200;
     /// 0 off, 1 slow, 2 normal, 3 fast.
