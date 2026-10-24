@@ -154,19 +154,56 @@ impl Head {
         self.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_str())
     }
 
-    /// The body's length; none for a request without one. Chunked bodies aren't read.
-    pub fn content_length(&self) -> Result<Option<usize>, Reject> {
-        if self.header("Transfer-Encoding").is_some() {
-            return Err(Reject::LengthRequired);
+    /// How the body comes: by its length, in chunks (.NET's JsonContent), or not at all.
+    pub fn body(&self) -> Result<Body, Reject> {
+        if let Some(te) = self.header("Transfer-Encoding") {
+            return if te.eq_ignore_ascii_case("chunked") { Ok(Body::Chunked) } else { Err(Reject::LengthRequired) };
         }
         match self.header("Content-Length") {
-            None => Ok(None),
+            None => Ok(Body::None),
             Some(v) => match v.parse::<usize>() {
                 Ok(n) if n > MAX_BODY => Err(Reject::TooLarge),
-                Ok(n) => Ok(Some(n)),
+                Ok(n) => Ok(Body::Length(n)),
                 Err(_) => Err(Reject::BadRequest("content-length")),
             },
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Body {
+    None,
+    Length(usize),
+    Chunked,
+}
+
+/// A chunked body put together; `None` while more is to come.
+pub fn dechunk(raw: &[u8]) -> Result<Option<Vec<u8>>, Reject> {
+    let bad = Reject::BadRequest("chunked");
+    let line_end = |from: usize| raw[from..].windows(2).position(|w| w == b"\r\n").map(|i| from + i);
+    let mut out = Vec::new();
+    let mut i = 0;
+    loop {
+        let Some(end) = line_end(i) else { return Ok(None) };
+        let size = std::str::from_utf8(&raw[i..end]).ok().and_then(|l| l.split(';').next()).map(str::trim).ok_or(bad)?;
+        let size = usize::from_str_radix(size, 16).map_err(|_| bad)?;
+        i = end + 2;
+        if size == 0 {
+            // Then trailers, if any, and a blank line.
+            let done = raw[i..].starts_with(b"\r\n") || raw[i..].windows(4).any(|w| w == b"\r\n\r\n");
+            return Ok(done.then_some(out));
+        }
+        if out.len() + size > MAX_BODY {
+            return Err(Reject::TooLarge);
+        }
+        if raw.len() < i + size + 2 {
+            return Ok(None);
+        }
+        if &raw[i + size..i + size + 2] != b"\r\n" {
+            return Err(bad);
+        }
+        out.extend_from_slice(&raw[i..i + size]);
+        i += size + 2;
     }
 }
 
@@ -739,8 +776,21 @@ mod tests {
         let h = head(raw);
         assert_eq!((h.method.as_str(), h.path.as_str()), ("PUT", "/v1/activities/yedek"));
         assert_eq!(h.header("Content-Type"), Some("application/json"));
-        assert_eq!(h.content_length(), Ok(Some(12)));
-        assert_eq!(head("GET /v1 HTTP/1.1\r\nHost: localhost:20034\r\n\r\n").content_length(), Ok(None));
+        assert_eq!(h.body(), Ok(Body::Length(12)));
+        assert_eq!(head("GET /v1 HTTP/1.1\r\nHost: localhost:20034\r\n\r\n").body(), Ok(Body::None));
+        // .NET's JsonContent (PostAsJsonAsync) doesn't say its length.
+        assert_eq!(head("POST /v1/notify HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n").body(), Ok(Body::Chunked));
+    }
+
+    #[test]
+    fn chunked_bodies_are_put_together() {
+        assert_eq!(dechunk(b"4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n"), Ok(Some(b"Wikipedia".to_vec())));
+        assert_eq!(dechunk(b"4;ext=1\r\nWiki\r\n0\r\nTrailer: x\r\n\r\n"), Ok(Some(b"Wiki".to_vec())), "extensions and trailers");
+        assert_eq!(dechunk(b"4\r\nWi"), Ok(None), "more to come");
+        assert_eq!(dechunk(b"4\r\nWiki\r\n0\r\n"), Ok(None), "the last line yet to come");
+        assert_eq!(dechunk(b"zz\r\nWiki\r\n"), Err(Reject::BadRequest("chunked")));
+        assert_eq!(dechunk(b"4\r\nWikiXX0\r\n\r\n"), Err(Reject::BadRequest("chunked")));
+        assert_eq!(dechunk(format!("{:x}\r\n", MAX_BODY + 1).as_bytes()), Err(Reject::TooLarge));
     }
 
     #[test]
@@ -748,9 +798,9 @@ mod tests {
         assert_eq!(parse_head(b"hello\r\n\r\n"), Err(Reject::BadRequest("head")));
         assert_eq!(parse_head(b"GET /v1 HTTP/1.1\r\nNoColon\r\n\r\n"), Err(Reject::BadRequest("head")));
         assert_eq!(parse_head(b"GET /v1 SPDY/3\r\n\r\n"), Err(Reject::BadRequest("head")));
-        assert_eq!(head("POST /v1/notify HTTP/1.1\r\nContent-Length: lots\r\n\r\n").content_length(), Err(Reject::BadRequest("content-length")));
-        assert_eq!(head("POST /v1/notify HTTP/1.1\r\nContent-Length: 999999\r\n\r\n").content_length(), Err(Reject::TooLarge));
-        assert_eq!(head("POST /v1/notify HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n").content_length(), Err(Reject::LengthRequired));
+        assert_eq!(head("POST /v1/notify HTTP/1.1\r\nContent-Length: lots\r\n\r\n").body(), Err(Reject::BadRequest("content-length")));
+        assert_eq!(head("POST /v1/notify HTTP/1.1\r\nContent-Length: 999999\r\n\r\n").body(), Err(Reject::TooLarge));
+        assert_eq!(head("POST /v1/notify HTTP/1.1\r\nTransfer-Encoding: gzip\r\n\r\n").body(), Err(Reject::LengthRequired));
         let big = format!("GET /v1 HTTP/1.1\r\nX: {}\r\n\r\n", "a".repeat(MAX_HEAD));
         assert_eq!(parse_head(big.as_bytes()), Err(Reject::TooLarge));
         assert_eq!(head_end(b"GET /v1 HTTP/1.1\r\nHost: x"), None);

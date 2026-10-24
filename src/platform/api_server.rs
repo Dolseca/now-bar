@@ -20,8 +20,8 @@ use windows::Win32::System::Threading::{GetCurrentProcessId, OpenProcess, QueryF
 
 pub use crate::activities::api::{ApiCall, ApiMailbox, ApiWhat, Reply};
 use crate::activities::api::{
-    discovery_json, events_json, head_end, info_json, ok_json, parse_activity, parse_events, parse_head, parse_notify, pending_json, reject_json, response,
-    route, screen, AppRequest, Caller, IconSpec, Kind, RateLimiter, Reject, Route, ASK_WAIT_MS, DEFAULT_PORT, MAX_HEAD,
+    dechunk, discovery_json, events_json, head_end, info_json, ok_json, parse_activity, parse_events, parse_head, parse_notify, pending_json, reject_json,
+    response, route, screen, AppRequest, Body, Caller, IconSpec, Kind, RateLimiter, Reject, Route, ASK_WAIT_MS, DEFAULT_PORT, MAX_BODY, MAX_HEAD,
 };
 use crate::activities::live::AppIcon;
 use crate::platform::log::log;
@@ -196,21 +196,30 @@ fn serve_one(stream: &mut TcpStream, shared: &Shared) -> Reply {
     if route == Route::Info {
         return Reply::ok(info_json(crate::platform::updater::VERSION));
     }
-    let len = match head.content_length() {
-        Ok(Some(n)) => n,
-        Ok(None) => return Reply::reject(Reject::LengthRequired),
+    let kind = match head.body() {
+        Ok(Body::None) => return Reply::reject(Reject::LengthRequired),
+        Ok(kind) => kind,
         Err(r) => return Reply::reject(r),
     };
-    let mut body = buf[end..].to_vec();
-    while body.len() < len {
+    let mut raw = buf[end..].to_vec();
+    let body = loop {
+        match kind {
+            Body::Length(len) if raw.len() >= len => break raw[..len].to_vec(),
+            Body::Chunked => match dechunk(&raw) {
+                Ok(Some(body)) => break body,
+                Ok(None) if raw.len() > 2 * MAX_BODY => return Reply::reject(Reject::TooLarge),
+                Ok(None) => {}
+                Err(r) => return Reply::reject(r),
+            },
+            _ => {}
+        }
         let Some(left) = deadline() else { return Reply::reject(Reject::BadRequest("timeout")) };
         let _ = stream.set_read_timeout(Some(left));
         match stream.read(&mut chunk) {
             Ok(0) | Err(_) => return Reply::reject(Reject::BadRequest("body")),
-            Ok(n) => body.extend_from_slice(&chunk[..n]),
+            Ok(n) => raw.extend_from_slice(&chunk[..n]),
         }
-    }
-    body.truncate(len);
+    };
     let Some((_, exe)) = caller_of(peer, local) else { return Reply::reject(Reject::Forbidden) };
     let (app, what, wait_s) = match parsed(&route, &body) {
         Ok(Parsed::Show(mut req)) => {
@@ -450,6 +459,19 @@ mod tests {
         let rebound = ask(p, &format!("POST /v1/notify HTTP/1.1\r\nHost: evil.test:{p}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()));
         assert!(rebound.starts_with("HTTP/1.1 403"), "{rebound}");
         assert!(mailbox.lock().unwrap().is_empty(), "nothing reached the UI");
+    }
+
+    #[test]
+    fn a_chunked_body_is_read() {
+        let (s, mailbox) = server(Duration::from_secs(5));
+        let seen = ui(mailbox, |_| true, Reply::ok("{}".into()), Duration::ZERO);
+        let p = s.port();
+        let body = r#"{"app":"Ekin","title":"Parça parça"}"#;
+        let (a, b) = body.split_at(10);
+        let raw = format!("POST /v1/notify HTTP/1.1\r\nHost: 127.0.0.1:{p}\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n{:x}\r\n{a}\r\n{:x}\r\n{b}\r\n0\r\n\r\n", a.len(), b.len());
+        let r = ask(p, &raw);
+        assert!(r.starts_with("HTTP/1.1 200"), "{r}");
+        assert_eq!(seen.join().unwrap().0, "Ekin");
     }
 
     #[test]
