@@ -95,6 +95,8 @@ pub const INDEX: &[Entry] = &[
     e(8, "capture-to-shelf", n_("Ekran görüntüleri"), n_("Ekran görüntülerini rafa ekle"), n_("Yeni görüntüler rafa düşer, sonra sürükleyip atmak için"), "ekran görüntüsü raf shelf sharex screenshot"),
     e(8, "claude-ask", n_("Canlı etkinlikler"), n_("Claude izinleri"), n_("Claude izin isteyince kartında İzin ver / Reddet çıkar"), "claude izin onay reddet permission hook"),
     e(8, "claude-ask-wait", n_("Canlı etkinlikler"), n_("İzin için bekleme"), n_("Kart bu kadar cevap bekler, sonra Claude kendi penceresinde sorar"), "claude izin bekleme süre saniye zaman aşımı"),
+    e(8, "api-on", n_("Uygulama bildirimleri"), n_("Uygulama bildirimleri"), n_("Diğer uygulamalar 127.0.0.1:20034 üzerinden pilde bildirim gösterebilir; önce sana sorulur"), "api bildirim uygulama izni notification http localhost 20034 geliştirici developer docs"),
+    e(8, "api-apps", n_("Uygulama bildirimleri"), n_("İzin verilen uygulamalar"), n_("Sorduklarında verdiğin cevaplar; tıkla: izin ver / engelle"), "api uygulama izin engelle sustur liste"),
     e(8, "headsets-on", n_("Diğer kulaklıklar"), n_("Diğer kulaklıkları göster"), n_("Galaxy Buds dışındaki Bluetooth kulaklıklar, pilleriyle"), "kulaklık bluetooth pil sony airpods jbl"),
     e(8, "brief-morning", n_("Now Brief"), n_("Sabah Now Brief"), n_("Günün ilk kilit açılışında günaydın kartı: hava, maçlar, müzik"), "brief now brief sabah özet ozet günaydın gunaydin kart kilit"),
     e(8, "brief-name", n_("Now Brief"), n_("Selamlamadaki adın"), n_("Boşsa Windows hesabındaki ad"), "ad adın isim selamlama günaydın brief"),
@@ -336,6 +338,17 @@ mod tests {
         let lost = BudsDevice { address: "02:00:00:00:00:09".into(), name: "Eski Buds".into() };
         let c = buds_choices(&all, Some(&lost));
         assert_eq!((c.labels.last().map(String::as_str), c.current, c.values.last()), (Some("Eski Buds · eşleşmemiş"), 5, Some(&Some(lost.clone()))));
+    }
+
+    #[test]
+    fn search_finds_the_app_api() {
+        for q in ["api", "bildirim", "20034", "uygulama izni"] {
+            assert!(search(q).iter().any(|h| h.row == "api-on" && h.page == 8), "{q}");
+        }
+        assert!(search("izin verilen").iter().any(|h| h.row == "api-apps"));
+        crate::i18n::in_language(crate::i18n::Language::English, || {
+            assert!(search("notifications").iter().any(|h| h.row == "api-on" && h.title == "App notifications"));
+        });
     }
 
     #[test]

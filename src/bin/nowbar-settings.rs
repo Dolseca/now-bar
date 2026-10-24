@@ -167,6 +167,29 @@ fn media_apps(s: &Settings, live: &[String]) -> Vec<Item> {
         .collect()
 }
 
+/// The apps that asked to show notifications, newest first; `id` is the app's key (its exe and
+/// name, as the Now Bar keeps them).
+fn api_rows(s: &Settings) -> Vec<Item> {
+    s.api_apps
+        .iter()
+        .rev()
+        .map(|a| {
+            let key = nowbar::activities::api::Caller { app: a.name.clone(), exe: a.exe.clone() }.key();
+            let exe = a.exe.rsplit(['\\', '/']).next().unwrap_or(&a.exe);
+            Item { id: key.clone().into(), name: a.name.clone().into(), sub: exe.into(), shown: a.allowed, current: false, tint: colour(app_badge(&a.name)), letter: badge_letter(&a.name).into() }
+        })
+        .collect()
+}
+
+/// Where the running Now Bar listens (its api.json), else where it would.
+fn api_address() -> String {
+    let found = std::env::var_os("LOCALAPPDATA")
+        .and_then(|d| std::fs::read_to_string(std::path::Path::new(&d).join("NowBar").join("api.json")).ok())
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|v| v["url"].as_str().map(|u| u.trim_start_matches("http://").to_string()));
+    found.unwrap_or_else(|| format!("127.0.0.1:{}", nowbar::activities::api::DEFAULT_PORT))
+}
+
 /// An app that isn't hidden has a media session now.
 fn media_live(s: &Settings, live: &[String]) -> bool {
     live.iter().any(|id| !s.media_hidden_apps.iter().any(|x| x.eq_ignore_ascii_case(id)))
@@ -475,6 +498,9 @@ fn fill(ui: &SettingsWindow, s: &Settings, live_apps: &[String]) {
     st.set_capture_to_shelf(s.capture_to_shelf);
     st.set_claude_ask(s.claude_ask);
     st.set_claude_ask_wait(s.claude_ask_wait_s as f32);
+    st.set_api_on(s.api_enabled);
+    st.set_api_address(api_address().into());
+    st.set_api_apps(model(api_rows(s)));
     st.set_idle_clock(s.idle_clock);
     st.set_weather_in_stack(s.weather_in_stack);
     st.set_weather_effects(s.weather_effects);
@@ -579,6 +605,7 @@ fn read(ui: &SettingsWindow, base: &Settings) -> Settings {
         capture_to_shelf: st.get_capture_to_shelf(),
         claude_ask: st.get_claude_ask(),
         claude_ask_wait_s: st.get_claude_ask_wait().round() as u32,
+        api_enabled: st.get_api_on(),
         update_check: st.get_update_check(),
         idle_clock: st.get_idle_clock(),
         weather_in_stack: st.get_weather_in_stack(),
@@ -919,6 +946,33 @@ fn main() -> Result<(), slint::PlatformError> {
                     ui.global::<Store>().set_apps(model(media_apps(&b.settings, &live_apps)));
                     ui.global::<Store>().set_media_live(media_live(&b.settings, &live_apps));
                 }
+            }
+            schedule_save();
+        });
+    }
+    {
+        let (ui_weak, bridge, schedule_save) = (ui.as_weak(), bridge.clone(), schedule_save.clone());
+        st.on_api_app_toggled(move |id, allowed| {
+            let key_of = |a: &settings::ApiApp| nowbar::activities::api::Caller { app: a.name.clone(), exe: a.exe.clone() }.key();
+            {
+                let mut b = bridge.borrow_mut();
+                if let Some(a) = b.settings.api_apps.iter_mut().find(|a| key_of(a) == id.as_str()) {
+                    a.allowed = allowed;
+                }
+            }
+            if let Some(ui) = ui_weak.upgrade() {
+                ui.global::<Store>().set_api_apps(model(api_rows(&bridge.borrow().settings)));
+            }
+            schedule_save();
+        });
+    }
+    {
+        let (ui_weak, bridge, schedule_save) = (ui.as_weak(), bridge.clone(), schedule_save.clone());
+        st.on_api_app_forget(move |id| {
+            let key_of = |a: &settings::ApiApp| nowbar::activities::api::Caller { app: a.name.clone(), exe: a.exe.clone() }.key();
+            bridge.borrow_mut().settings.api_apps.retain(|a| key_of(a) != id.as_str());
+            if let Some(ui) = ui_weak.upgrade() {
+                ui.global::<Store>().set_api_apps(model(api_rows(&bridge.borrow().settings)));
             }
             schedule_save();
         });

@@ -1506,6 +1506,34 @@ export component SystemBody inherits VerticalLayout {
             opacity: Store.idle-clock || (Store.place-name != "" && Store.weather-in-stack) ? 1 : 0.4;
         }
     }
+    H4 {
+        title: @tr("Uygulama bildirimleri");
+        count: Store.api-on ? Store.api-apps.length + @tr(" uygulama · tıkla: izin ver / engelle") : @tr("kapalı");
+    }
+    if Store.api-apps.length == 0: LRow {
+        title: @tr("Henüz uygulama yok");
+        sub: Store.api-on ? @tr("bir uygulama sorunca burada görünür") : @tr("sağdan aç");
+        lead: 1;
+        glyph: "\u{EA8F}";
+    }
+    for app in Store.api-apps: LRow {
+        title: app.name;
+        sub: app.sub;
+        clickable: true;
+        lead: 3;
+        letter: app.letter;
+        badge: app.tint;
+        opacity: Store.api-on ? 1 : 0.4;
+        clicked => { Store.api-app-toggled(app.id, !app.shown); }
+        Tag {
+            text: app.shown ? @tr("İzinli") : @tr("Engelli");
+            tint: app.shown ? Tags.green : Tags.red;
+        }
+        IconButton {
+            glyph: "\u{E711}";
+            clicked => { Store.api-app-forget(app.id); }
+        }
+    }
     Tail { }
 }
 
@@ -1758,6 +1786,24 @@ export component SystemInspector inherits VerticalLayout {
                 moved => { Ui.changed(); }
             }
         }
+    }
+    ISection {
+        title: @tr("Uygulama bildirimleri");
+        IRow {
+            label: @tr("Uygulama bildirimleri");
+            note: Store.api-address;
+            Toggle {
+                checked <=> Store.api-on;
+                toggled => { Ui.changed(); }
+            }
+        }
+        Text {
+            text: @tr("Açıkken, izin verdiğin uygulamalar pilde bildirim gösterebilir. Hangi uygulamalara izin verdiğin ve gösterdikleri senin sorumluluğunda; Now Bar yalnızca gösterir.");
+            font-size: 13px;
+            color: Theme.text2;
+            wrap: word-wrap;
+        }
+        Rectangle { height: 8px; }
     }
     ISection {
         title: "Now Brief";

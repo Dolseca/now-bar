@@ -3053,3 +3053,43 @@ msgstr "Only allow apps you trust."
 #: src/render/card.rs
 msgid "Sustur"
 msgstr "Mute"
+
+#: src/settings_ui.rs
+msgid "Uygulama bildirimleri"
+msgstr "App notifications"
+
+#: src/settings_ui.rs
+msgid "Diğer uygulamalar 127.0.0.1:20034 üzerinden pilde bildirim gösterebilir; önce sana sorulur"
+msgstr "Other apps can show notifications in the pill through 127.0.0.1:20034; you're asked first"
+
+#: src/settings_ui.rs
+msgid "İzin verilen uygulamalar"
+msgstr "Allowed apps"
+
+#: src/settings_ui.rs
+msgid "Sorduklarında verdiğin cevaplar; tıkla: izin ver / engelle"
+msgstr "Your answers when they asked; click: allow / block"
+
+#: ui/pages.slint
+msgid " uygulama · tıkla: izin ver / engelle"
+msgstr " apps · click: allow / block"
+
+#: ui/pages.slint
+msgid "bir uygulama sorunca burada görünür"
+msgstr "an app shows here once it asks"
+
+#: ui/pages.slint
+msgid "sağdan aç"
+msgstr "turn it on at the right"
+
+#: ui/pages.slint
+msgid "İzinli"
+msgstr "Allowed"
+
+#: ui/pages.slint
+msgid "Engelli"
+msgstr "Blocked"
+
+#: ui/pages.slint
+msgid "Açıkken, izin verdiğin uygulamalar pilde bildirim gösterebilir. Hangi uygulamalara izin verdiğin ve gösterdikleri senin sorumluluğunda; Now Bar yalnızca gösterir."
+msgstr "While it's on, the apps you allow can show notifications in the pill. Which apps you allow, and what they show, is your responsibility; the Now Bar only shows it."

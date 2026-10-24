@@ -175,6 +175,12 @@ export global Store {
     in-out property <bool> claude-ask: true;
     /// Seconds, 10–300.
     in-out property <float> claude-ask-wait: 60;
+    /// Other apps may show notifications through the API (off until turned on).
+    in-out property <bool> api-on: false;
+    /// Where it listens: "127.0.0.1:20034".
+    in property <string> api-address: "127.0.0.1:20034";
+    /// The apps that asked; `shown` is the answer (allowed), `id` the app's key.
+    in-out property <[Item]> api-apps;
     /// Nothing else on: the pill shows the clock and the weather instead of hiding.
     in-out property <bool> idle-clock: true;
     in-out property <bool> weather-in-stack: true;
@@ -237,6 +243,9 @@ export global Store {
     callback changed();
     /// A list row's switch: list is "apps" or "devices".
     callback item-toggled(string, string, bool);
+    /// An app's answer flipped (its key, allowed now), or the app forgotten (asked again).
+    callback api-app-toggled(string, bool);
+    callback api-app-forget(string);
     /// Adds an exception as typed; returns the error to show ("" when it was added).
     callback exception-added(string) -> string;
     callback exception-removed(int);
