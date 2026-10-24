@@ -19,6 +19,16 @@ pub enum Language {
     English,
 }
 
+impl Language {
+    /// Its ISO 639-1 code, as web services take it.
+    pub fn code(self) -> &'static str {
+        match self {
+            Language::Turkish => "tr",
+            Language::English => "en",
+        }
+    }
+}
+
 /// The settings' choice: Windows' own language, or one of the two.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

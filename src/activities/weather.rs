@@ -107,7 +107,7 @@ pub fn geocode_url(name: &str) -> String {
             _ => q.push_str(&format!("%{b:02X}")),
         }
     }
-    format!("https://geocoding-api.open-meteo.com/v1/search?name={q}&count=5&language=tr&format=json")
+    format!("https://geocoding-api.open-meteo.com/v1/search?name={q}&count=5&language={}&format=json", crate::i18n::lang().code())
 }
 
 /// The forecast answer: now, the next `hours` hours from now (`now_utc`), today's low and high.
@@ -192,9 +192,9 @@ pub fn rough(v: f64) -> f64 {
 }
 
 /// OpenStreetMap's name for a point (Nominatim: no key, a question every few hours): city level,
-/// names in Turkish.
+/// names in the interface's language.
 pub fn reverse_url(lat: f64, lon: f64) -> String {
-    format!("https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={:.2}&lon={:.2}&zoom=10&accept-language=tr", rough(lat), rough(lon))
+    format!("https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={:.2}&lon={:.2}&zoom=10&accept-language={}", rough(lat), rough(lon), crate::i18n::lang().code())
 }
 
 /// The place a reverse answer names: the district or town ("Kadıköy"), else the city, the village
@@ -514,7 +514,16 @@ mod tests {
     fn only_a_rough_point_leaves_the_pc() {
         assert_eq!(rough(40.98765), 40.99);
         assert_eq!(rough(-0.004), -0.0);
-        assert_eq!(reverse_url(40.98765, 29.03123), "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=40.99&lon=29.03&zoom=10&accept-language=tr");
+        let url = crate::i18n::in_language(crate::i18n::Language::Turkish, || reverse_url(40.98765, 29.03123));
+        assert_eq!(url, "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=40.99&lon=29.03&zoom=10&accept-language=tr");
+    }
+
+    #[test]
+    fn place_names_come_in_the_interfaces_language() {
+        use crate::i18n::{in_language, Language};
+        assert!(in_language(Language::English, || reverse_url(48.14, 11.58)).ends_with("&accept-language=en"), "Munich, not München or Münih");
+        assert!(in_language(Language::English, || geocode_url("Munich")).contains("&language=en&"));
+        assert!(in_language(Language::Turkish, || geocode_url("Münih")).contains("&language=tr&"));
     }
 
     #[test]
