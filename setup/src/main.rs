@@ -47,6 +47,13 @@ fn main() {
     let uninstalling = has("--uninstall") || from.is_some();
     // The language the Now Bar's settings pick (a first install has none: Windows' own).
     nowbar::i18n::set_language(nowbar::i18n::chosen(nowbar::settings::load().language));
+    // Older Windows 10s lack what the Now Bar runs on; removing it still works there.
+    if !uninstalling && nowbar::platform::os::build().is_some_and(|b| !nowbar::platform::os::supported(b)) {
+        if !quiet {
+            message(tr("Now Bar, Windows 10 sürüm 1809 veya sonrasını gerektirir."));
+        }
+        std::process::exit(1);
+    }
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
     }

@@ -238,6 +238,12 @@ fn main() {
         nowbar::platform::uninstall_entry::refresh_version(&dir, nowbar::platform::updater::VERSION);
     }
     std::panic::set_hook(Box::new(|info| log(&format!("panic: {info}"))));
+    let build = nowbar::platform::os::build();
+    log(&format!("windows build {build:?} ({:?})", nowbar::platform::os::generation()));
+    if build.is_some_and(|b| !nowbar::platform::os::supported(b)) {
+        nowbar::i18n::set_language(nowbar::i18n::chosen(nowbar::settings::load().language));
+        return message_box(tr("Now Bar, Windows 10 sürüm 1809 veya sonrasını gerektirir."));
+    }
     // The app was moved: Claude's hooks still point at the old exe, which is gone.
     if let Ok(exe) = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()) {
         let moved = nowbar::claude_hooks::rewrite(|v| nowbar::claude_hooks::follow(v, &exe, |c| std::path::Path::new(c).exists()));

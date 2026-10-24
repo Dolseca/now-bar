@@ -35,7 +35,10 @@ pub fn get_bytes(url: &str, headers: &[(&str, &str)]) -> Result<(u32, Vec<u8>), 
             return Err(format!("WinHttpOpen: {:?}", windows::core::Error::from_thread()));
         }
         let protocols: u32 = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
-        let _ = WinHttpSetOption(Some(session.0), WINHTTP_OPTION_SECURE_PROTOCOLS, Some(&protocols.to_ne_bytes()));
+        if WinHttpSetOption(Some(session.0), WINHTTP_OPTION_SECURE_PROTOCOLS, Some(&protocols.to_ne_bytes())).is_err() {
+            // Windows 10 has no TLS 1.3 and may refuse the pair: 1.2 alone, which every source takes.
+            let _ = WinHttpSetOption(Some(session.0), WINHTTP_OPTION_SECURE_PROTOCOLS, Some(&WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2.to_ne_bytes()));
+        }
         let _ = WinHttpSetTimeouts(session.0, 10_000, 10_000, 15_000, 15_000);
         let connect = Handle(WinHttpConnect(session.0, &HSTRING::from(host), parts.nPort, 0));
         if connect.0.is_null() {

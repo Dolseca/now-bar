@@ -5,8 +5,8 @@ use std::cell::Cell;
 
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows::Win32::Graphics::Dwm::{
-    DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR, DWMWA_USE_IMMERSIVE_DARK_MODE,
-    DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+    DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+    DWMWINDOWATTRIBUTE,
 };
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi};
@@ -29,8 +29,10 @@ pub fn style_frame(hwnd: HWND, dark: bool) {
     // COLORREF is 0x00BBGGRR: Theme.ground and Theme.text.
     let (bg, text): (u32, u32) = if dark { (0x0018_1616, 0x00E3_EEF6) } else { (0x00EF_EDED, 0x0013_181C) };
     let on: i32 = dark as i32;
+    // 19 before Windows 10 20H1. The colours and corners are Windows 11's: they fail on 10.
+    let dark_mode = DWMWINDOWATTRIBUTE(crate::platform::os::build().map_or(20, crate::platform::os::dark_mode_attribute) as i32);
     unsafe {
-        let _ = DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &on as *const i32 as _, 4);
+        let _ = DwmSetWindowAttribute(hwnd, dark_mode, &on as *const i32 as _, 4);
         let _ = DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &bg as *const u32 as _, 4);
         let _ = DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &bg as *const u32 as _, 4);
         let _ = DwmSetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, &text as *const u32 as _, 4);

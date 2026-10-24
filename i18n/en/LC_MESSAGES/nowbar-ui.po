@@ -3037,3 +3037,7 @@ msgstr "{} files"
 #: ui/pages.slint
 msgid "Windows 11 gerekir"
 msgstr "Needs Windows 11"
+
+#: src/main.rs
+msgid "Now Bar, Windows 10 sürüm 1809 veya sonrasını gerektirir."
+msgstr "Now Bar needs Windows 10 version 1809 or later."
