@@ -4,7 +4,7 @@
 
 # Now Bar
 
-**Samsung One UI'ın Now Bar'ı, Windows 11 görev çubuğunda.**
+**Samsung One UI'ın Now Bar'ı, Windows 11 ve 10 görev çubuğunda.**
 
 Görev çubuğunda küçük bir pil durur ve o an olanı gösterir: çalan şarkı, zamanlayıcı, maçın skoru,<br>
 Claude Code'un ne yaptığı. Tıklayınca üstünde bir kart açılır.
@@ -14,7 +14,7 @@ Claude Code'un ne yaptığı. Tıklayınca üstünde bir kart açılır.
 [Kurulum](#kurulum) &nbsp;·&nbsp;
 [Derleme](#derleme)
 
-<sub>One UI's Now Bar in the Windows 11 taskbar. The app speaks Turkish and English.</sub>
+<sub>One UI's Now Bar in the Windows 11 and 10 taskbar. The app speaks Turkish and English.</sub>
 
 </div>
 
@@ -207,8 +207,9 @@ Code'un adımları ve izin istekleri görev çubuğunda görünür: ekran payla�
 
 ## Bilinen sınırlar
 
-- **Windows 11 gerekir.** Windows 10'da açılır ama görev çubuğu farklı olduğu için pil yanlış yere
-  oturabilir; Segoe Fluent Icons yoksa simgeler Segoe MDL2 Assets'ten gelir.
+- **Windows 11 ya da Windows 10 (1809 ve sonrası).** Windows 10'da kartın arkası bulanıklaşmaz
+  (düz zemin) ve simgeler Segoe MDL2 Assets'ten gelir. Windows 10 desteği 0.2.1'de geldi; görev
+  çubuğundaki yerleşimi henüz yalnızca benzetimle denendi.
 - **Galaxy Buds:** Buds2'de denendi; Buds2 Pro, Buds FE, Buds Core, Buds3, Buds3 FE ve Buds4 aynı
   protokolü kullanır, Buds Pro da bulunur. İlk Galaxy Buds, Buds+ ve Buds Live desteklenmez.
   GalaxyBudsClient ya da Samsung'un Galaxy Buds uygulaması bağlantıyı tutarken Now Bar okuyamaz.
