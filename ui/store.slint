@@ -183,6 +183,10 @@ export global Store {
     in-out property <[Item]> api-apps;
     /// Nothing else on: the pill shows the clock and the weather instead of hiding.
     in-out property <bool> idle-clock: true;
+    /// 0 primary taskbar, 1 first secondary taskbar.
+    in-out property <int> display-monitor: 0;
+    /// 0 12-hour, 1 24-hour.
+    in-out property <int> clock-format: 1;
     in-out property <bool> weather-in-stack: true;
     in-out property <bool> weather-effects: true;
     in-out property <bool> brief-morning: true;
