@@ -14,7 +14,7 @@ use nowbar::platform::audio::{list_outputs, picker_order};
 use nowbar::platform::fullscreen::visible_apps;
 use nowbar::render::card::output_subline;
 use nowbar::settings::{
-    self, AnimationSpeed, CardSize, FollowedTeam, Hotkey, Marquee, PillButtons, PillSize, Settings, Theme as Look, TrayClick, WeatherCity,
+    self, AnimationSpeed, CardSize, ClockFormat, DisplayMonitor, FollowedTeam, Hotkey, Marquee, PillButtons, PillSize, Settings, Theme as Look, TrayClick, WeatherCity,
 };
 use nowbar::activities::buds::Paired;
 use nowbar::i18n::{self, Language, LanguagePick};
@@ -502,6 +502,8 @@ fn fill(ui: &SettingsWindow, s: &Settings, live_apps: &[String]) {
     st.set_api_address(api_address().into());
     st.set_api_apps(model(api_rows(s)));
     st.set_idle_clock(s.idle_clock);
+    st.set_display_monitor(if s.display_monitor == DisplayMonitor::Secondary { 1 } else { 0 });
+    st.set_clock_format(if s.clock_format == ClockFormat::TwelveHour { 0 } else { 1 });
     st.set_weather_in_stack(s.weather_in_stack);
     st.set_weather_effects(s.weather_effects);
     st.set_brief_morning(s.brief_morning);
@@ -608,6 +610,8 @@ fn read(ui: &SettingsWindow, base: &Settings) -> Settings {
         api_enabled: st.get_api_on(),
         update_check: st.get_update_check(),
         idle_clock: st.get_idle_clock(),
+        display_monitor: if st.get_display_monitor() == 1 { DisplayMonitor::Secondary } else { DisplayMonitor::Primary },
+        clock_format: if st.get_clock_format() == 0 { ClockFormat::TwelveHour } else { ClockFormat::TwentyFourHour },
         weather_in_stack: st.get_weather_in_stack(),
         weather_effects: st.get_weather_effects(),
         brief_morning: st.get_brief_morning(),
