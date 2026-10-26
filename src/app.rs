@@ -447,7 +447,8 @@ fn pill_size_factor(size: PillSize) -> f32 {
 
 /// Settings that change geometry or the material: the windows and visuals are rebuilt.
 fn needs_rebuild(old: &Settings, new: &Settings) -> bool {
-    old.pill_size != new.pill_size
+    old.display_monitor != new.display_monitor
+        || old.pill_size != new.pill_size
         || old.card_size != new.card_size
         || old.pill_offset_dip != new.pill_offset_dip
         || old.card_blur != new.card_blur
@@ -526,11 +527,11 @@ struct Ui {
 
 impl Ui {
     fn build(gfx: &Gfx) -> Result<Ui> {
-        let bar = taskbar::find_taskbar()
+        let s = settings::current();
+        let bar = taskbar::find_taskbar_for(s.display_monitor)
             .ok_or_else(|| windows::core::Error::new(windows::Win32::Foundation::E_FAIL, "taskbar not found"))?;
         let info = taskbar::taskbar_info(bar)?;
         let scale = Scale::from_dpi(unsafe { GetDpiForWindow(bar) });
-        let s = settings::current();
         // A low taskbar (Windows 10's, lower still with small buttons) takes a smaller pill.
         let pill_scale = Scale(scale.0 * pill_fit(info.rect.h, PILL_H_DIP, &scale, pill_size_factor(s.pill_size)));
         let card_scale = Scale(scale.0 * if s.card_size == CardSize::Compact { 0.88 } else { 1.0 });
@@ -569,7 +570,7 @@ impl Ui {
 
     /// Still the same taskbar, geometry, alignment and DPI as when built?
     fn still_valid(&self) -> bool {
-        taskbar::find_taskbar() == Some(self.bar)
+        taskbar::find_taskbar_for(settings::current().display_monitor) == Some(self.bar)
             && taskbar::taskbar_info(self.bar).is_ok_and(|i| {
                 i.rect == self.info.rect && i.align == self.info.align && i.widgets == self.info.widgets && i.bottom == self.info.bottom
             })
@@ -3656,7 +3657,7 @@ impl App {
             UiEvent::Timer(TIMER_REBUILD) => self.rebuild_or_retry(),
             // Explorer restarted: move into the new taskbar as soon as it exists. Its TaskbarCreated
             // comes only once it takes tray icons, 8 to 45 s later here.
-            UiEvent::Timer(TIMER_BAR_CHECK) if taskbar::find_taskbar() != Some(self.ui.bar) => {
+            UiEvent::Timer(TIMER_BAR_CHECK) if taskbar::find_taskbar_for(settings::current().display_monitor) != Some(self.ui.bar) => {
                 log("taskbar: a new one");
                 self.rebuild_or_retry()
             }
