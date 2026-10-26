@@ -68,6 +68,22 @@ pub enum Theme {
     Light,
 }
 
+/// Which Windows taskbar hosts the pill. Secondary selects the first secondary taskbar.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DisplayMonitor {
+    Primary,
+    Secondary,
+}
+
+/// Clock style used by the clock/weather pill and time labels.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClockFormat {
+    TwelveHour,
+    TwentyFourHour,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PillButtons {
@@ -205,6 +221,10 @@ pub struct Settings {
     pub headsets_on: bool,
     /// With nothing else on, the pill shows the clock and the weather instead of hiding.
     pub idle_clock: bool,
+    /// Which taskbar displays the pill; Secondary falls back to Primary if Windows has none.
+    pub display_monitor: DisplayMonitor,
+    /// 12-hour or 24-hour time for clock labels.
+    pub clock_format: ClockFormat,
     /// The weather's city (`None`: where the PC is, or the clock alone).
     pub weather_city: Option<WeatherCity>,
     /// Without a city: the weather where the PC is (Windows' location service).
@@ -333,6 +353,8 @@ impl Default for Settings {
             privacy_on: true,
             headsets_on: true,
             idle_clock: true,
+            display_monitor: DisplayMonitor::Primary,
+            clock_format: ClockFormat::TwentyFourHour,
             weather_city: None,
             weather_locate: true,
             weather_in_stack: true,
