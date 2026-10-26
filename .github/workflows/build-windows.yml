@@ -11,13 +11,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
-      - name: Build release binaries
-        run: cargo build --release --locked
-      - name: Upload Windows executables
+      - name: Build installer and release executables
+        shell: pwsh
+        run: ./tools/make-setup.ps1 -Jobs 2
+      - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: NowBar-Windows-Binaries
+          name: NowBar-Windows-Installer
           path: |
-            target/release/nowbar.exe
-            target/release/nowbar-settings.exe
+            dist/nowbar-setup.exe
+            dist/nowbar.exe
+            dist/nowbar-settings.exe
+            dist/SHA256SUMS.txt
           if-no-files-found: error
