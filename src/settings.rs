@@ -92,6 +92,7 @@ pub enum PillPosition {
     Left,
     Center,
     Right,
+    DynamicIsland,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -422,7 +422,7 @@ fn fill(ui: &SettingsWindow, s: &Settings, live_apps: &[String]) {
     st.set_enabled(s.enabled);
     st.set_pill_size(index_of(&[PillSize::Compact, PillSize::Standard, PillSize::Large], &s.pill_size, 1));
     st.set_pill_offset(s.pill_offset_dip as f32);
-    st.set_pill_position(match s.pill_position { PillPosition::Auto => 0, PillPosition::Left => 1, PillPosition::Center => 2, PillPosition::Right => 3 });
+    st.set_pill_position(match s.pill_position { PillPosition::Auto => 0, PillPosition::Left => 1, PillPosition::Center => 2, PillPosition::Right => 3, PillPosition::DynamicIsland => 4 });
     st.set_pill_opacity(s.pill_opacity_pct as f32);
     st.set_pill_slivers(s.pill_slivers);
     st.set_accent(s.accent_color.to_uppercase().into());
@@ -538,7 +538,7 @@ fn read(ui: &SettingsWindow, base: &Settings) -> Settings {
         enabled: st.get_enabled(),
         pill_size: pick(&[PillSize::Compact, PillSize::Standard, PillSize::Large], st.get_pill_size(), PillSize::Standard),
         pill_offset_dip: st.get_pill_offset().round() as i32,
-        pill_position: pick(&[PillPosition::Auto, PillPosition::Left, PillPosition::Center, PillPosition::Right], st.get_pill_position(), PillPosition::Auto),
+        pill_position: pick(&[PillPosition::Auto, PillPosition::Left, PillPosition::Center, PillPosition::Right, PillPosition::DynamicIsland], st.get_pill_position(), PillPosition::Auto),
         pill_opacity_pct: st.get_pill_opacity().round() as u8,
         pill_slivers: st.get_pill_slivers(),
         accent_color: st.get_accent().to_string(),

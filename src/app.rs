@@ -62,7 +62,7 @@ use crate::platform::updater::{state as updater_state, Progress, UpdateMailbox, 
 use crate::update::{newer, UpdateState};
 use crate::activities::weather_worker::{WeatherMailbox, WeatherWorker};
 use crate::activities::media::app_accent;
-use crate::settings::{self, CardSize, PillSize, Settings, TrayClick};
+use crate::settings::{self, CardSize, PillPosition, PillSize, Settings, TrayClick};
 use crate::platform::audio::{
     PeakMeter,
     default_output_level, default_output_name, list_outputs, output_muted, output_volume, picker_order, set_default_output, set_output_mute, set_output_volume,
@@ -451,6 +451,7 @@ fn needs_rebuild(old: &Settings, new: &Settings) -> bool {
         || old.pill_size != new.pill_size
         || old.card_size != new.card_size
         || old.pill_offset_dip != new.pill_offset_dip
+        || old.pill_position != new.pill_position
         || old.card_blur != new.card_blur
         || old.material_darkness_pct != new.material_darkness_pct
         || old.material_saturation_pct != new.material_saturation_pct
@@ -515,6 +516,7 @@ struct Ui {
     card_scale: Scale,
     /// The monitor the taskbar is on; only fullscreen there hides the pill.
     monitor: RectPx,
+    floating: bool,
     pill_window: PillWindow,
     pill: PillVisual,
     pill_layout: PillLayout,
@@ -531,20 +533,34 @@ impl Ui {
         let bar = taskbar::find_taskbar_for(s.display_monitor)
             .ok_or_else(|| windows::core::Error::new(windows::Win32::Foundation::E_FAIL, "taskbar not found"))?;
         let info = taskbar::taskbar_info(bar)?;
+        let monitor = monitor_of(bar).unwrap_or(info.rect);
+        let floating = s.pill_position == PillPosition::DynamicIsland;
         let scale = Scale::from_dpi(unsafe { GetDpiForWindow(bar) });
-        // A low taskbar (Windows 10's, lower still with small buttons) takes a smaller pill.
-        let pill_scale = Scale(scale.0 * pill_fit(info.rect.h, PILL_H_DIP, &scale, pill_size_factor(s.pill_size)));
+        // A taskbar pill fits the taskbar height; the floating island uses the monitor's normal DPI.
+        let pill_scale = if floating {
+            Scale(scale.0 * pill_size_factor(s.pill_size))
+        } else {
+            Scale(scale.0 * pill_fit(info.rect.h, PILL_H_DIP, &scale, pill_size_factor(s.pill_size)))
+        };
         let card_scale = Scale(scale.0 * if s.card_size == CardSize::Compact { 0.88 } else { 1.0 });
         let placeholder = PillContent::Timer { text: String::new(), label: "", paused: false };
-        let pill_r = App::pill_home(&info, &pill_scale, placeholder.width_dip());
-        let lane = RectPx { x: info.rect.x, w: info.rect.w, ..pill_r };
-        let pill_window = PillWindow::create(gfx, bar, lane, layout_for(&placeholder, &pill_scale).frame_w)?;
+        let mut pill_r = App::pill_home(&info, &pill_scale, placeholder.width_dip());
+        if floating {
+            pill_r.x = monitor.x + (monitor.w - pill_r.w) / 2 + pill_scale.px(s.pill_offset_dip as f32) as i32;
+            pill_r.y = monitor.y + pill_scale.px(10.0) as i32;
+        }
+        let lane = if floating {
+            RectPx { x: monitor.x, y: pill_r.y, w: monitor.w, h: pill_r.h }
+        } else {
+            RectPx { x: info.rect.x, w: info.rect.w, ..pill_r }
+        };
+        let pill_window = PillWindow::create(gfx, bar, lane, layout_for(&placeholder, &pill_scale).frame_w, floating)?;
         pill_window.set_visible(false);
         if let Err(e) = dragdrop::register(pill_window.input, DropZone::Pill) {
             log(&format!("shelf: the pill takes no drops ({e})"));
         }
         let pill = PillVisual::new(gfx, &pill_window.stage)?;
-        let card_window = CardWindow::create(gfx, App::card_frame(&info, &card_scale, pill_r))?;
+        let card_window = CardWindow::create(gfx, App::card_frame(&info, &card_scale, pill_r, monitor, floating))?;
         if let Err(e) = dragdrop::register(card_window.input, DropZone::Card) {
             log(&format!("shelf: the card takes no drops ({e})"));
         }
@@ -557,7 +573,8 @@ impl Ui {
             scale,
             pill_scale,
             card_scale,
-            monitor: monitor_of(bar).unwrap_or(info.rect),
+            monitor,
+            floating,
             pill_window,
             pill,
             pill_layout: layout_for(&placeholder, &pill_scale),
@@ -1078,6 +1095,7 @@ impl App {
             crate::settings::PillPosition::Left => rect.x = info.rect.x + inset + offset,
             crate::settings::PillPosition::Center => rect.x = info.rect.x + (info.rect.w - rect.w) / 2 + offset,
             crate::settings::PillPosition::Right => rect.x = info.rect.x + info.rect.w - rect.w - inset + offset,
+            crate::settings::PillPosition::DynamicIsland => {}
         }
         rect
     }
@@ -1087,6 +1105,13 @@ impl App {
     /// the circle fits.
     fn pill_at(&self, width_dip: f32) -> Option<(RectPx, bool)> {
         let s = &self.ui.pill_scale;
+        if self.ui.floating {
+            let w = s.even_px(width_dip) as i32;
+            let h = s.px(PILL_H_DIP) as i32;
+            let x = self.ui.monitor.x + (self.ui.monitor.w - w) / 2 + s.px(settings::current().pill_offset_dip as f32) as i32;
+            let y = self.ui.monitor.y + s.px(10.0) as i32;
+            return Some((RectPx { x, y, w, h }, false));
+        }
         let home = Self::pill_home(&self.ui.info, s, width_dip);
         let circle = Self::pill_home(&self.ui.info, s, PILL_H_DIP);
         let circle = RectPx { w: circle.h, ..circle };
@@ -1118,12 +1143,28 @@ impl App {
 
     /// From the top of the tallest card's shadow down to the bottom of the taskbar, so the morph
     /// can start at the pill inside the taskbar.
-    fn card_frame(info: &TaskbarInfo, s: &Scale, pill: RectPx) -> RectPx {
+    fn card_frame(info: &TaskbarInfo, s: &Scale, pill: RectPx, monitor: RectPx, floating: bool) -> RectPx {
         let cx = pill.x + pill.w / 2;
         let w = s.even_px(CARD_FRAME_W_DIP + 2.0 * SHADOW_BLUR_DIP) as i32;
-        let tallest = card_rect(info, cx, CARD_FRAME_W_DIP, CARD_FRAME_H_DIP, CARD_GAP_DIP, s);
-        let top = tallest.y - s.px(SHADOW_BLUR_DIP) as i32;
-        RectPx { x: frame_x(info, cx, w), y: top, w, h: info.rect.bottom() - top }
+        if floating {
+            let top = pill.y - s.px(SHADOW_BLUR_DIP) as i32;
+            RectPx { x: frame_x(info, cx, w), y: top, w, h: (monitor.bottom() - top).max(1) }
+        } else {
+            let tallest = card_rect(info, cx, CARD_FRAME_W_DIP, CARD_FRAME_H_DIP, CARD_GAP_DIP, s);
+            let top = tallest.y - s.px(SHADOW_BLUR_DIP) as i32;
+            RectPx { x: frame_x(info, cx, w), y: top, w, h: info.rect.bottom() - top }
+        }
+    }
+
+    fn card_target(&self, pill: RectPx, centre: i32, wd: f32, hd: f32, s: &Scale) -> RectPx {
+        if !self.ui.floating {
+            return card_rect(&self.ui.info, centre, wd, hd, CARD_GAP_DIP, s);
+        }
+        let w = s.even_px(wd) as i32;
+        let h = s.px(hd) as i32;
+        let margin = s.px(8.0) as i32;
+        let x = (centre - w / 2).clamp(self.ui.monitor.x + margin, self.ui.monitor.x + self.ui.monitor.w - margin - w);
+        RectPx { x, y: pill.bottom() + s.px(CARD_GAP_DIP) as i32, w, h }
     }
 
     fn pill_screen(&self) -> RectPx {
@@ -3176,7 +3217,7 @@ impl App {
         let (wd, hd) = card_size_dip(content);
         // Its own centre, not the pill's: a front that changes width must not slide the card.
         let centre = self.card_screen.x + self.card_screen.w / 2;
-        let to = card_rect(&self.ui.info, centre, wd, hd, CARD_GAP_DIP, &s);
+        let to = self.card_target(self.pill_screen(), centre, wd, hd, &s);
         if to == self.card_screen {
             return Ok(());
         }
@@ -3208,7 +3249,7 @@ impl App {
             // The open card's centre: the pill's moves when the new front is narrower or wider,
             // and the card window doesn't move while it is shown.
             let centre = self.card_screen.x + self.card_screen.w / 2;
-            let to = card_rect(&self.ui.info, centre, wd, hd, CARD_GAP_DIP, &s);
+            let to = self.card_target(self.pill_screen(), centre, wd, hd, &s);
             let f = self.ui.card_window.frame;
             let rel = |r: RectPx| RectPx { x: r.x - f.x, y: r.y - f.y, ..r };
             let old_r = self.open.and_then(|o| self.card_content(o, now)).map_or(s.px(36.0), |c| s.px(card_radius_dip(&c)));
@@ -3286,14 +3327,14 @@ impl App {
         let s = self.ui.card_scale;
         let pill = self.pill_screen();
         // The pill may have moved aside for the taskbar's buttons since the window was made.
-        let frame = Self::card_frame(&self.ui.info, &s, pill);
+        let frame = Self::card_frame(&self.ui.info, &s, pill, self.ui.monitor, self.ui.floating);
         if frame != self.ui.card_window.frame {
             self.ui.card_window.move_to(frame)?;
         }
         self.ui.card.set(&self.gfx, &content, &s)?;
         self.sync_card_fx(&content);
         let (wd, hd) = card_size_dip(&content);
-        let to = card_rect(&self.ui.info, pill.x + pill.w / 2, wd, hd, CARD_GAP_DIP, &s);
+        let to = self.card_target(pill, pill.x + pill.w / 2, wd, hd, &s);
         let f = self.ui.card_window.frame;
         let rel = |r: RectPx| RectPx { x: r.x - f.x, y: r.y - f.y, ..r };
         let to_r = s.px(card_radius_dip(&content));

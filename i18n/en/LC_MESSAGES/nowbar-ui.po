@@ -3149,3 +3149,7 @@ msgstr "12-hour"
 #: ui/pages.slint
 msgid "24 saat"
 msgstr "24-hour"
+
+#: ui/pages.slint
+msgid "Dinamik ada"
+msgstr "Dynamic Island"

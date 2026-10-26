@@ -273,7 +273,7 @@ export component AppearanceInspector inherits VerticalLayout {
             label: @tr("Yerleşim");
             note: @tr("Görev çubuğunda tercih ettiğin konum");
             Select {
-                options: [@tr("Otomatik"), @tr("Sol"), @tr("Orta"), @tr("Sağ")];
+                options: [@tr("Otomatik"), @tr("Sol"), @tr("Orta"), @tr("Sağ"), @tr("Dinamik ada")];
                 selected <=> Store.pill-position;
                 box-width: 126px;
                 picked => { Ui.changed(); }

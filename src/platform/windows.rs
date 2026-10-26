@@ -558,6 +558,7 @@ pub struct PillWindow {
     pub stage: ContainerVisual,
     bar: HWND,
     lane: RectPx,
+    floating: bool,
     /// Last placement and visibility: these calls go across processes into Explorer, so ticks
     /// that change nothing skip them.
     placed: std::cell::Cell<Option<(RectPx, i32)>>,
@@ -569,18 +570,25 @@ impl PillWindow {
     /// `lane` is the composition window's rect (the taskbar's width at the pill's height) and
     /// `frame_w` the pill frame's width, in screen pixels. The window never moves: the pill
     /// glides inside it, which a moving child window can't do smoothly.
-    pub fn create(g: &Gfx, bar: HWND, lane: RectPx, frame_w: i32) -> Result<Self> {
-        let ex = WS_EX_NOREDIRECTIONBITMAP | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
+    pub fn create(g: &Gfx, bar: HWND, lane: RectPx, frame_w: i32, floating: bool) -> Result<Self> {
+        let ex = WS_EX_NOREDIRECTIONBITMAP | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
+            | if floating { WS_EX_TOPMOST } else { WINDOW_EX_STYLE(0) };
         let hwnd = create(PASSIVE_CLASS, ex, lane)?;
         unsafe { SetLayeredWindowAttributes(hwnd, COLORREF(0), 255, LWA_ALPHA)? };
-        taskbar::embed(hwnd, bar, lane)?;
+        if !floating {
+            taskbar::embed(hwnd, bar, lane)?;
+        }
         let (target, root) = composition_target(g, hwnd, lane)?;
         let stage = g.compositor.CreateContainerVisual()?;
         stage.SetSize(windows_numerics::Vector2 { X: frame_w as f32, Y: lane.h as f32 })?;
         root.Children()?.InsertAtTop(&stage)?;
 
-        let input = create(PILL_INPUT_CLASS, WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, lane)?;
-        taskbar::embed(input, bar, lane)?;
+        let input_ex = WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
+            | if floating { WS_EX_TOPMOST } else { WINDOW_EX_STYLE(0) };
+        let input = create(PILL_INPUT_CLASS, input_ex, lane)?;
+        if !floating {
+            taskbar::embed(input, bar, lane)?;
+        }
         // Alpha 1: invisible but still hit-testable. Set after embedding; set before, a layered
         // child keeps an opaque (black) surface.
         unsafe { SetLayeredWindowAttributes(input, COLORREF(0), 1, LWA_ALPHA)? };
@@ -589,7 +597,7 @@ impl PillWindow {
             let _ = ShowWindow(input, SW_SHOWNOACTIVATE);
         }
         let (placed, stage_x, visible) = Default::default();
-        Ok(PillWindow { hwnd, input, target, root, stage, bar, lane, placed, stage_x, visible })
+        Ok(PillWindow { hwnd, input, target, root, stage, bar, lane, floating, placed, stage_x, visible })
     }
 
     /// Puts the input window on `pill` and centres the pill's frame (`frame_w` wide) on it; with
@@ -609,9 +617,16 @@ impl PillWindow {
         if self.placed.get() == Some((pill, radius_px)) {
             return Ok(());
         }
-        taskbar::place(self.input, self.bar, pill)?;
+        if self.floating {
+            unsafe {
+                SetWindowPos(self.input, Some(HWND_TOPMOST), pill.x, pill.y, pill.w, pill.h, SWP_NOACTIVATE | SWP_SHOWWINDOW)?;
+                SetWindowPos(self.hwnd, Some(HWND_TOPMOST), self.lane.x, self.lane.y, self.lane.w, self.lane.h, SWP_NOACTIVATE | SWP_SHOWWINDOW)?;
+            }
+        } else {
+            taskbar::place(self.input, self.bar, pill)?;
+            taskbar::place(self.hwnd, self.bar, self.lane)?;
+        }
         set_hit_region(self.input, pill.w, pill.h, radius_px);
-        taskbar::place(self.hwnd, self.bar, self.lane)?;
         self.placed.set(Some((pill, radius_px)));
         Ok(())
     }
