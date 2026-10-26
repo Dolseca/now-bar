@@ -84,6 +84,16 @@ pub enum ClockFormat {
     TwentyFourHour,
 }
 
+/// Preferred horizontal anchor for the pill; collision handling still keeps it clear of taskbar items.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PillPosition {
+    Auto,
+    Left,
+    Center,
+    Right,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PillButtons {
@@ -151,6 +161,8 @@ pub struct Settings {
     // Görünüm
     /// Moves the pill (and its cards) right (+) or left (−) of where v1 puts it.
     pub pill_offset_dip: i32,
+    /// Preferred horizontal anchor along the taskbar.
+    pub pill_position: PillPosition,
     pub pill_size: PillSize,
     pub pill_opacity_pct: u8,
     pub pill_slivers: bool,
@@ -302,6 +314,7 @@ impl Default for Settings {
             card_close_on_leave: true,
             card_leave_close_ms: 600,
             pill_offset_dip: 0,
+            pill_position: PillPosition::Auto,
             pill_size: PillSize::Standard,
             pill_opacity_pct: 92,
             pill_slivers: true,

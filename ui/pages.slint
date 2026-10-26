@@ -270,6 +270,16 @@ export component AppearanceInspector inherits VerticalLayout {
         title: @tr("Pil");
         first: true;
         IRow {
+            label: @tr("Yerleşim");
+            note: @tr("Görev çubuğunda tercih ettiğin konum");
+            Select {
+                options: [@tr("Otomatik"), @tr("Sol"), @tr("Orta"), @tr("Sağ")];
+                selected <=> Store.pill-position;
+                box-width: 126px;
+                picked => { Ui.changed(); }
+            }
+        }
+        IRow {
             label: @tr("Konum");
             MiniSlider {
                 value <=> Store.pill-offset;

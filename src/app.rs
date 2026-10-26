@@ -1068,8 +1068,18 @@ impl App {
     }
 
     /// Where a pill `width_dip` wide sits with nothing in its way (the offset setting applied).
-    fn pill_home(info: &TaskbarInfo, s: &Scale, width_dip: f32) -> RectPx {
-        pill_rect(info, width_dip, PILL_H_DIP, s, settings::current().pill_offset_dip as f32)
+    fn pill_home(info: &TaskbarInfo, scale: &Scale, width_dip: f32) -> RectPx {
+        let settings = settings::current();
+        let mut rect = pill_rect(info, width_dip, PILL_H_DIP, scale, settings.pill_offset_dip as f32);
+        let offset = scale.px(settings.pill_offset_dip as f32) as i32;
+        let inset = scale.px(12.0) as i32;
+        match settings.pill_position {
+            crate::settings::PillPosition::Auto => {}
+            crate::settings::PillPosition::Left => rect.x = info.rect.x + inset + offset,
+            crate::settings::PillPosition::Center => rect.x = info.rect.x + (info.rect.w - rect.w) / 2 + offset,
+            crate::settings::PillPosition::Right => rect.x = info.rect.x + info.rect.w - rect.w - inset + offset,
+        }
+        rect
     }
 
     /// The pill's rect at `width_dip`: its home, or beside the taskbar's buttons when they reach
