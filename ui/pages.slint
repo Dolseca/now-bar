@@ -1680,6 +1680,30 @@ component CityPicker inherits VerticalLayout {
 export component SystemInspector inherits VerticalLayout {
     alignment: start;
     ISection {
+        title: @tr("Saat ve ekran");
+        first: true;
+        IRow {
+            label: @tr("Gösterilecek ekran");
+            note: @tr("İkincil görev çubuğu yoksa ana ekran kullanılır");
+            Select {
+                options: [@tr("Ana ekran"), @tr("İkincil ekran")];
+                selected <=> Store.display-monitor;
+                box-width: 126px;
+                picked => { Ui.changed(); }
+            }
+        }
+        IRow {
+            label: @tr("Saat biçimi");
+            note: @tr("Saat ve hava kartındaki saatler");
+            Select {
+                options: [@tr("12 saat"), @tr("24 saat")];
+                selected <=> Store.clock-format;
+                box-width: 126px;
+                picked => { Ui.changed(); }
+            }
+        }
+    }
+    ISection {
         title: @tr("Ses seviyesi");
         first: true;
         IRow {
