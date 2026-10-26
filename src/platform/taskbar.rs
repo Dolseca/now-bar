@@ -27,6 +27,19 @@ pub fn find_taskbar() -> Option<HWND> {
     unsafe { FindWindowW(w!("Shell_TrayWnd"), None).ok() }
 }
 
+/// Selects the primary taskbar or the first secondary taskbar. Some Windows configurations
+/// do not create a secondary taskbar; in that case keep the pill available on the primary one.
+pub fn find_taskbar_for(display: crate::settings::DisplayMonitor) -> Option<HWND> {
+    unsafe {
+        match display {
+            crate::settings::DisplayMonitor::Primary => FindWindowW(w!("Shell_TrayWnd"), None).ok(),
+            crate::settings::DisplayMonitor::Secondary =>
+                FindWindowW(w!("Shell_SecondaryTrayWnd"), None).ok()
+                    .or_else(|| FindWindowW(w!("Shell_TrayWnd"), None).ok()),
+        }
+    }
+}
+
 pub fn window_rect(hwnd: HWND) -> Result<RectPx> {
     let mut r = RECT::default();
     unsafe { GetWindowRect(hwnd, &mut r)? };
