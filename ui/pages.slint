@@ -1442,7 +1442,7 @@ export component SystemBody inherits VerticalLayout {
         sub: Store.performance-on ? @tr("CPU · RAM · GPU") : @tr("kapalı");
         clickable: true;
         lead: 1;
-        glyph: "\\u{E9D9}";
+        glyph: "\u{E9D9}";
         clicked => {
             Store.performance-on = !Store.performance-on;
             Ui.changed();

@@ -282,6 +282,7 @@ impl PillContent {
             PillContent::Game { .. } => 260.0,
             PillContent::Usage { .. } => 260.0,
             PillContent::Shelf { min_width_dip, .. } => min_width_dip.max(200.0),
+            PillContent::Live { claude: true, .. } => 300.0,
             PillContent::Live { action, .. } if !action.is_empty() => 300.0,
             PillContent::App { .. } => 300.0,
             PillContent::Clock { .. } | PillContent::Weather { .. } | PillContent::Live { .. } => 220.0,

@@ -212,7 +212,7 @@ pub fn start() {
     let _ = thread::Builder::new().name("nowbar-system-monitor".into()).spawn(|| {
         let mut cpu = CpuSampler::default();
         let mut gpu: Option<GpuSampler> = None;
-        let mut gpu_retry_at = std::time::Instant::now();
+        let mut gpu_retry_at: Option<std::time::Instant> = None;
         let mut visible = false;
 
         loop {
@@ -226,32 +226,30 @@ pub fn start() {
                 }
                 cpu = CpuSampler::default();
                 gpu = None;
+                gpu_retry_at = None;
                 thread::sleep(Duration::from_secs(2));
                 continue;
             }
 
-            if s.performance_gpu && gpu.is_none() && gpu_retry_at.elapsed() >= Duration::from_secs(30) {
+            if s.performance_gpu && gpu.is_none() && gpu_retry_at.is_none_or(|at| at.elapsed() >= Duration::from_secs(30)) {
                 gpu = GpuSampler::new();
-                gpu_retry_at = std::time::Instant::now();
+                gpu_retry_at = Some(std::time::Instant::now());
             } else if !s.performance_gpu {
                 gpu = None;
+                gpu_retry_at = None;
             }
 
-            let mut pill = Vec::with_capacity(3);
             let mut details = Vec::with_capacity(3);
             if s.performance_cpu {
                 let value = cpu.sample().map_or_else(|| "—".to_string(), |v| format!("{v}%"));
-                pill.push(format!("CPU {value}"));
                 details.push(format!("CPU: {value}"));
             }
             if s.performance_memory {
                 let value = memory_percent().map_or_else(|| "—".to_string(), |v| format!("{v}%"));
-                pill.push(format!("RAM {value}"));
                 details.push(format!("RAM: {value}"));
             }
             if s.performance_gpu {
                 let value = gpu.as_mut().and_then(GpuSampler::sample).map_or_else(|| "—".to_string(), |v| format!("{v}%"));
-                pill.push(format!("GPU {value}"));
                 details.push(format!("GPU: {value}"));
             }
 
@@ -265,9 +263,6 @@ pub fn start() {
                 app: None,
             };
             // The generic live pill uses the text as its trailing status line for this activity.
-            let mut msg = msg;
-            msg.title = pill.join(" · ");
-            msg.text = details.join(" · ");
             if ipc::send(&Command::Live(Box::new(msg))) {
                 visible = true;
             }
