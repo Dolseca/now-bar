@@ -317,3 +317,18 @@ exits at once (always 0) when the Now Bar isn't running.
 
 `api` is `1`. New fields and endpoints may come within it; nothing in it changes meaning. Anything
 that would is `/v2`.
+
+## Codex Code live activity
+
+Now Bar can show Codex sessions, tool activity, permission-wait states, interruptions, and completed turns through Codex lifecycle hooks.
+
+Install or remove from PowerShell:
+
+```powershell
+& "C:\Path\To\NowBar\nowbar.exe" codex-hooks install
+& "C:\Path\To\NowBar\nowbar.exe" codex-hooks remove
+```
+
+After installation, open Codex and run `/hooks` to review and trust the new Now Bar hook definitions. Codex intentionally requires this trust step; installation does not bypass it.
+
+The hooks are passive: they send event names and tool names to the local Now Bar window. They do not send prompt text or transcript contents, approve/reject permissions, block tools, or change Codex policy. Existing hook entries are preserved. The original file is backed up before the first write.

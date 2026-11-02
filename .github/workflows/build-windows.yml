@@ -2,7 +2,7 @@ name: Build Now Bar for Windows
 on:
   workflow_dispatch:
   push:
-    branches: [feature/display-monitor-clock-format]
+    branches: [feature/display-monitor-clock-format, feature/system-monitoring-codex-arabic]
 jobs:
   build:
     runs-on: windows-2022

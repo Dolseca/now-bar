@@ -108,9 +108,17 @@ fn forward(args: &[String]) -> bool {
             claude_hook(args.iter().any(|a| a == "--ask"));
             return true;
         }
+        Some("codex-hook") => {
+            codex_hook();
+            return true;
+        }
         Some("update") => Some(Command::Update),
         Some("claude-hooks") => {
             claude_hooks_command(args.get(2).map(String::as_str));
+            return true;
+        }
+        Some("codex-hooks") => {
+            codex_hooks_command(args.get(2).map(String::as_str));
             return true;
         }
         _ => return false,
@@ -191,6 +199,44 @@ fn claude_hook(asks: bool) {
     }
 }
 
+
+/// `nowbar.exe codex-hooks install | remove`: install passive Codex lifecycle tracking in
+/// %USERPROFILE%\\.codex\\hooks.json. Codex still requires the user to review/trust the hooks
+/// with `/hooks`; Now Bar never approves or changes Codex permissions.
+fn codex_hooks_command(what: Option<&str>) {
+    use nowbar::codex_hooks::{install, remove, rewrite};
+    nowbar::i18n::set_language(nowbar::i18n::chosen(nowbar::settings::load().language));
+    let exe = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+    let (done, text) = match what {
+        Some("install") => (
+            rewrite(|v| install(v, &exe)),
+            "Codex hooks installed. In Codex, open /hooks and review/trust the Now Bar hooks. Tracking starts in new sessions.",
+        ),
+        Some("remove") => (rewrite(|v| Some(remove(v))), "Codex hooks removed. Other hooks were preserved."),
+        _ => (Ok(true), "Usage: nowbar.exe codex-hooks install | remove"),
+    };
+    let text = match done {
+        Err(e) => format!("Could not update Codex hooks: {e}"),
+        Ok(false) => "Codex hooks.json has an unexpected structure; it was left unchanged.".to_string(),
+        Ok(true) => text.to_string(),
+    };
+    message_box(&text);
+}
+
+/// One passive Codex lifecycle hook. It only reports activity; it never returns policy decisions,
+/// blocks tools, reads transcript contents, or exposes prompt text.
+fn codex_hook() {
+    use std::io::Read;
+    let mut text = String::new();
+    if std::io::stdin().take(1 << 20).read_to_string(&mut text).is_err() {
+        return;
+    }
+    let Ok(hook) = serde_json::from_str::<serde_json::Value>(&text) else { return };
+    if let Some(msg) = nowbar::codex_hooks::message(&hook) {
+        let _ = ipc::send(&Command::Live(Box::new(msg)));
+    }
+}
+
 /// 128 random bits as hex (the std hasher's keys come from the OS's random source).
 fn nonce() -> String {
     use std::hash::{BuildHasher, Hasher};
@@ -244,11 +290,15 @@ fn main() {
         nowbar::i18n::set_language(nowbar::i18n::chosen(nowbar::settings::load().language));
         return message_box(tr("Now Bar, Windows 10 sürüm 1809 veya sonrasını gerektirir."));
     }
-    // The app was moved: Claude's hooks still point at the old exe, which is gone.
+    // The app was moved: Claude and Codex hooks still point at the old exe, which is gone.
     if let Ok(exe) = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()) {
         let moved = nowbar::claude_hooks::rewrite(|v| nowbar::claude_hooks::follow(v, &exe, |c| std::path::Path::new(c).exists()));
         if let Ok(true) = moved {
             log(&format!("claude hooks moved to {exe}"));
+        }
+        let moved = nowbar::codex_hooks::rewrite(|v| nowbar::codex_hooks::follow(v, &exe, |c| std::path::Path::new(c).exists()));
+        if let Ok(true) = moved {
+            log(&format!("codex hooks moved to {exe}"));
         }
     }
     if let Err(e) = run() {
