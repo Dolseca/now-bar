@@ -263,6 +263,8 @@ pub struct Settings {
     pub weather_alerts: bool,
     /// Live activities other programs send (`nowbar.exe push`, Claude Code's hooks).
     pub live_enabled: bool,
+    /// Install Codex lifecycle hooks and show their sessions as live activities.
+    pub codex_enabled: bool,
     /// A new screenshot (ShareX, Windows' Screenshots folder) shows in the pill for a moment.
     pub capture_moment: bool,
     /// ...and goes onto the shelf.
@@ -390,6 +392,7 @@ impl Default for Settings {
             rain_moment: true,
             weather_alerts: true,
             live_enabled: true,
+            codex_enabled: false,
             capture_moment: true,
             capture_to_shelf: true,
             claude_ask: true,

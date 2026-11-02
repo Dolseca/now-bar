@@ -3226,3 +3226,20 @@ msgstr "How often readings refresh, in seconds"
 #: ui/pages.slint
 msgid "CPU, RAM ve GPU kullanımını canlı gösterir"
 msgstr "Show live CPU, RAM and GPU usage"
+
+
+#: ui/pages.slint
+msgid "OpenAI Codex"
+msgstr "OpenAI Codex"
+
+#: ui/pages.slint
+msgid "Oturumları, araçları ve biten görevleri pilde gösterir"
+msgstr "Show sessions, tool activity and completed tasks in the pill"
+
+#: ui/pages.slint
+msgid "görev ve araç etkinliği"
+msgstr "task and tool activity"
+
+#: ui/pages.slint
+msgid "Codex oturumlarını, araç etkinliğini ve biten görevleri pilde gösterir; istem metnini okumaz"
+msgstr "Show Codex sessions, tool activity and completed tasks in the pill; prompt text is not read"

@@ -99,6 +99,7 @@ pub const INDEX: &[Entry] = &[
     e(8, "capture-moment", n_("Ekran görüntüleri"), n_("Ekran görüntüsünü göster"), n_("ShareX ya da Ekran Alıntısı Aracı yeni bir görüntü kaydedince pilde kısa bir an; sürükleyip atabilirsin"), "ekran görüntüsü screenshot sharex alıntı snipping kırpma yakalama"),
     e(8, "capture-to-shelf", n_("Ekran görüntüleri"), n_("Ekran görüntülerini rafa ekle"), n_("Yeni görüntüler rafa düşer, sonra sürükleyip atmak için"), "ekran görüntüsü raf shelf sharex screenshot"),
     e(8, "claude-ask", n_("Canlı etkinlikler"), n_("Claude izinleri"), n_("Claude izin isteyince kartında İzin ver / Reddet çıkar"), "claude izin onay reddet permission hook"),
+    e(8, "codex-on", n_("Canlı etkinlikler"), n_("OpenAI Codex"), n_("Codex oturumlarını, araç etkinliğini ve biten görevleri pilde gösterir; istem metnini okumaz"), "codex openai görev araç hook session task progress"),
     e(8, "claude-ask-wait", n_("Canlı etkinlikler"), n_("İzin için bekleme"), n_("Kart bu kadar cevap bekler, sonra Claude kendi penceresinde sorar"), "claude izin bekleme süre saniye zaman aşımı"),
     e(8, "api-on", n_("Uygulama bildirimleri"), n_("Uygulama bildirimleri"), n_("Diğer uygulamalar 127.0.0.1:20034 üzerinden pilde bildirim gösterebilir; önce sana sorulur"), "api bildirim uygulama izni notification http localhost 20034 geliştirici developer docs"),
     e(8, "api-apps", n_("Uygulama bildirimleri"), n_("İzin verilen uygulamalar"), n_("Sorduklarında verdiğin cevaplar; tıkla: izin ver / engelle"), "api uygulama izin engelle sustur liste"),

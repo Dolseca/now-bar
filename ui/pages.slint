@@ -1513,6 +1513,17 @@ export component SystemBody inherits VerticalLayout {
         }
     }
     LRow {
+        title: @tr("OpenAI Codex");
+        sub: Store.codex-on ? @tr("görev ve araç etkinliği") : @tr("kapalı");
+        clickable: true;
+        lead: 1;
+        glyph: "\u{E9D9}";
+        clicked => {
+            Store.codex-on = !Store.codex-on;
+            Ui.changed();
+        }
+    }
+    LRow {
         title: @tr("Saat ve hava");
         // With a city the weather can also wait at the back of the stack.
         property <string> when: Store.place-name == "" ? (Store.idle-clock ? @tr("boştayken") : "")
@@ -1871,6 +1882,14 @@ export component SystemInspector inherits VerticalLayout {
             note: @tr("Kartta İzin ver / Reddet");
             Toggle {
                 checked <=> Store.claude-ask;
+                toggled => { Ui.changed(); }
+            }
+        }
+        IRow {
+            label: @tr("OpenAI Codex");
+            note: @tr("Oturumları, araçları ve biten görevleri pilde gösterir");
+            Toggle {
+                checked <=> Store.codex-on;
                 toggled => { Ui.changed(); }
             }
         }

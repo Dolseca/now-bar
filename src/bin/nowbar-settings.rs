@@ -495,6 +495,7 @@ fn fill(ui: &SettingsWindow, s: &Settings, live_apps: &[String]) {
     st.set_privacy_on(s.privacy_on);
     st.set_headsets_on(s.headsets_on);
     st.set_live_on(s.live_enabled);
+    st.set_codex_on(s.codex_enabled);
     st.set_capture_moment(s.capture_moment);
     st.set_capture_to_shelf(s.capture_to_shelf);
     st.set_claude_ask(s.claude_ask);
@@ -610,6 +611,7 @@ fn read(ui: &SettingsWindow, base: &Settings) -> Settings {
         privacy_on: st.get_privacy_on(),
         headsets_on: st.get_headsets_on(),
         live_enabled: st.get_live_on(),
+        codex_enabled: st.get_codex_on(),
         capture_moment: st.get_capture_moment(),
         capture_to_shelf: st.get_capture_to_shelf(),
         claude_ask: st.get_claude_ask(),
@@ -916,6 +918,25 @@ fn main() -> Result<(), slint::PlatformError> {
                 let merged = to_save(&saved, &next, settings::try_load());
                 if let Err(e) = settings::save(&merged) {
                     nowbar::platform::log::log(&format!("settings window: save failed: {e:?}"));
+                }
+                if saved.codex_enabled != merged.codex_enabled {
+                    let exe = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+                    let changed = if merged.codex_enabled {
+                        nowbar::codex_hooks::rewrite(|v| nowbar::codex_hooks::install(v, &exe))
+                    } else {
+                        nowbar::codex_hooks::rewrite(|v| Some(nowbar::codex_hooks::remove(v)))
+                    };
+                    match changed {
+                        Ok(true) => nowbar::platform::log::log(if merged.codex_enabled { "Codex hooks installed from Settings" } else { "Codex hooks removed from Settings" }),
+                        Ok(false) => {
+                            nowbar::platform::log::log("Codex hooks.json has an unsupported structure; no changes made");
+                            ui.global::<Ui>().set_error("Codex hooks.json has an unsupported structure; it was left unchanged.".into());
+                        }
+                        Err(e) => {
+                            nowbar::platform::log::log(&format!("Codex hooks update failed: {e:?}"));
+                            ui.global::<Ui>().set_error(format!("Could not update Codex hooks: {e}").into());
+                        }
+                    }
                 }
                 if merged != next {
                     fill(&ui, &merged, &live_media_apps());
