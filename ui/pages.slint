@@ -1434,6 +1434,21 @@ export component AboutInspector inherits VerticalLayout {
 export component SystemBody inherits VerticalLayout {
     alignment: start;
     H4 {
+        title: @tr("Performans");
+        count: Store.performance-on ? @tr("açık") : @tr("kapalı");
+    }
+    LRow {
+        title: @tr("Sistem izleme");
+        sub: Store.performance-on ? @tr("CPU · RAM · GPU") : @tr("kapalı");
+        clickable: true;
+        lead: 1;
+        glyph: "\\u{E9D9}";
+        clicked => {
+            Store.performance-on = !Store.performance-on;
+            Ui.changed();
+        }
+    }
+    H4 {
         title: @tr("Pilde");
         count: @tr("5 etkinlik · tıkla: aç / kapat");
     }
@@ -1710,6 +1725,57 @@ export component SystemInspector inherits VerticalLayout {
                 selected <=> Store.clock-format;
                 box-width: 126px;
                 picked => { Ui.changed(); }
+            }
+        }
+    }
+    ISection {
+        title: @tr("Performans");
+        IRow {
+            label: @tr("Sistem izleme");
+            note: @tr("Kapalıyken örnekleme yapılmaz");
+            Toggle {
+                checked <=> Store.performance-on;
+                toggled => { Ui.changed(); }
+            }
+        }
+        IRow {
+            label: @tr("CPU kullanımı");
+            note: @tr("İşlemci yükü");
+            Toggle {
+                checked <=> Store.performance-cpu;
+                enabled: Store.performance-on;
+                toggled => { Ui.changed(); }
+            }
+        }
+        IRow {
+            label: @tr("Bellek kullanımı");
+            note: @tr("Kullanılan fiziksel RAM");
+            Toggle {
+                checked <=> Store.performance-memory;
+                enabled: Store.performance-on;
+                toggled => { Ui.changed(); }
+            }
+        }
+        IRow {
+            label: @tr("GPU kullanımı");
+            note: @tr("En yoğun grafik motoru; sürücü destekliyorsa");
+            Toggle {
+                checked <=> Store.performance-gpu;
+                enabled: Store.performance-on;
+                toggled => { Ui.changed(); }
+            }
+        }
+        IRow {
+            label: @tr("Yenileme aralığı");
+            note: @tr("Daha uzun aralık daha az örnekleme yapar");
+            MiniSlider {
+                value <=> Store.performance-interval;
+                minimum: 1;
+                maximum: 10;
+                step: 1;
+                enabled: Store.performance-on;
+                text: Fmt.seconds(Store.performance-interval);
+                moved => { Ui.changed(); }
             }
         }
     }

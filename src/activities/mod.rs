@@ -20,6 +20,7 @@ pub mod live;
 pub mod lyrics;
 pub mod lyrics_worker;
 pub mod power;
+pub mod system_monitor;
 pub mod shelf;
 pub mod shelf_worker;
 pub mod timer;

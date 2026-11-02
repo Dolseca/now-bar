@@ -3153,3 +3153,76 @@ msgstr "24-hour"
 #: ui/pages.slint
 msgid "Dinamik ada"
 msgstr "Dynamic Island"
+
+
+#: ui/pages.slint
+msgid "Performans"
+msgstr "Performance"
+
+#: ui/pages.slint
+msgid "Sistem izleme"
+msgstr "System monitoring"
+
+#: ui/pages.slint
+msgid "açık"
+msgstr "on"
+
+#: ui/pages.slint
+msgid "CPU · RAM · GPU"
+msgstr "CPU · RAM · GPU"
+
+#: ui/pages.slint
+msgid "CPU kullanımı"
+msgstr "CPU usage"
+
+#: ui/pages.slint
+msgid "İşlemci yükü"
+msgstr "Processor load"
+
+#: ui/pages.slint
+msgid "Bellek kullanımı"
+msgstr "Memory usage"
+
+#: ui/pages.slint
+msgid "Kullanılan fiziksel RAM"
+msgstr "Physical RAM in use"
+
+#: ui/pages.slint
+msgid "GPU kullanımı"
+msgstr "GPU usage"
+
+#: ui/pages.slint
+msgid "En yoğun grafik motoru; sürücü destekliyorsa"
+msgstr "Busiest graphics engine, when the driver exposes it"
+
+#: ui/pages.slint
+msgid "Yenileme aralığı"
+msgstr "Refresh interval"
+
+#: ui/pages.slint
+msgid "Daha uzun aralık daha az örnekleme yapar"
+msgstr "Longer intervals reduce sampling"
+
+#: ui/pages.slint
+msgid "Kapalıyken örnekleme yapılmaz"
+msgstr "No sampling while disabled"
+
+#: ui/pages.slint
+msgid "Kullanılan fiziksel RAM'i gösterir"
+msgstr "Show physical RAM in use"
+
+#: ui/pages.slint
+msgid "İşlemci yükünü yüzde olarak gösterir"
+msgstr "Show processor load as a percentage"
+
+#: ui/pages.slint
+msgid "En yoğun grafik motorunu gösterir"
+msgstr "Show the busiest graphics engine"
+
+#: ui/pages.slint
+msgid "Ölçümlerin kaç saniyede bir yenileneceği"
+msgstr "How often readings refresh, in seconds"
+
+#: ui/pages.slint
+msgid "CPU, RAM ve GPU kullanımını canlı gösterir"
+msgstr "Show live CPU, RAM and GPU usage"

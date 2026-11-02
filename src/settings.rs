@@ -238,6 +238,13 @@ pub struct Settings {
     pub display_monitor: DisplayMonitor,
     /// 12-hour or 24-hour time for clock labels.
     pub clock_format: ClockFormat,
+    /// Show a low-overhead system monitor as a live activity.
+    pub performance_enabled: bool,
+    pub performance_cpu: bool,
+    pub performance_memory: bool,
+    pub performance_gpu: bool,
+    /// Refresh interval in seconds (1–10).
+    pub performance_interval_s: u32,
     /// The weather's city (`None`: where the PC is, or the clock alone).
     pub weather_city: Option<WeatherCity>,
     /// Without a city: the weather where the PC is (Windows' location service).
@@ -369,6 +376,11 @@ impl Default for Settings {
             idle_clock: true,
             display_monitor: DisplayMonitor::Primary,
             clock_format: ClockFormat::TwentyFourHour,
+            performance_enabled: false,
+            performance_cpu: true,
+            performance_memory: true,
+            performance_gpu: true,
+            performance_interval_s: 2,
             weather_city: None,
             weather_locate: true,
             weather_in_stack: true,
@@ -428,6 +440,7 @@ impl Settings {
         self.match_show_before_min = self.match_show_before_min.min(180);
         self.match_keep_after_min = self.match_keep_after_min.min(120);
         self.power_low_pct = self.power_low_pct.clamp(5, 50);
+        self.performance_interval_s = self.performance_interval_s.clamp(1, 10);
         self.wellbeing_limits.retain(|l| l.minutes > 0 && !l.exe.trim().is_empty());
         for l in &mut self.wellbeing_limits {
             l.minutes = l.minutes.min(24 * 60);
@@ -625,6 +638,9 @@ mod tests {
         assert_eq!(s.accent_color, "#5D57D2");
         assert_eq!(s.pill_opacity_pct, 92);
         assert_eq!(s.hotkey_picker, Hotkey::WinAltN);
+        assert!(!s.performance_enabled, "monitoring is opt-in to preserve idle resource use");
+        assert!(s.performance_cpu && s.performance_memory && s.performance_gpu);
+        assert_eq!(s.performance_interval_s, 2);
         assert_eq!((s.match_show_before_min, s.match_keep_after_min), (60, 30));
         assert_eq!(s.match_goal_sound, "tada");
         assert_eq!((s.material_darkness_pct, s.material_saturation_pct), (35, 200));
@@ -660,11 +676,12 @@ mod tests {
 
     #[test]
     fn out_of_range_values_are_clamped() {
-        let s = parse(r#"{"card_leave_close_ms": 50, "pill_opacity_pct": 10, "buds_low_battery_pct": 99, "timer_presets_min": [0, 500]}"#);
+        let s = parse(r#"{"card_leave_close_ms": 50, "pill_opacity_pct": 10, "buds_low_battery_pct": 99, "timer_presets_min": [0, 500], "performance_interval_s": 99}"#);
         assert_eq!(s.card_leave_close_ms, 200);
         assert_eq!(s.pill_opacity_pct, 70);
         assert_eq!(s.buds_low_battery_pct, 50);
         assert_eq!(s.timer_presets_min, vec![1, 180]);
+        assert_eq!(s.performance_interval_s, 10);
     }
 
     #[test]

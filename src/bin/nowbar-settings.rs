@@ -505,6 +505,11 @@ fn fill(ui: &SettingsWindow, s: &Settings, live_apps: &[String]) {
     st.set_idle_clock(s.idle_clock);
     st.set_display_monitor(if s.display_monitor == DisplayMonitor::Secondary { 1 } else { 0 });
     st.set_clock_format(if s.clock_format == ClockFormat::TwelveHour { 0 } else { 1 });
+    st.set_performance_on(s.performance_enabled);
+    st.set_performance_cpu(s.performance_cpu);
+    st.set_performance_memory(s.performance_memory);
+    st.set_performance_gpu(s.performance_gpu);
+    st.set_performance_interval(s.performance_interval_s as f32);
     st.set_weather_in_stack(s.weather_in_stack);
     st.set_weather_effects(s.weather_effects);
     st.set_brief_morning(s.brief_morning);
@@ -614,6 +619,11 @@ fn read(ui: &SettingsWindow, base: &Settings) -> Settings {
         idle_clock: st.get_idle_clock(),
         display_monitor: if st.get_display_monitor() == 1 { DisplayMonitor::Secondary } else { DisplayMonitor::Primary },
         clock_format: if st.get_clock_format() == 0 { ClockFormat::TwelveHour } else { ClockFormat::TwentyFourHour },
+        performance_enabled: st.get_performance_on(),
+        performance_cpu: st.get_performance_cpu(),
+        performance_memory: st.get_performance_memory(),
+        performance_gpu: st.get_performance_gpu(),
+        performance_interval_s: st.get_performance_interval().round() as u32,
         weather_in_stack: st.get_weather_in_stack(),
         weather_effects: st.get_weather_effects(),
         brief_morning: st.get_brief_morning(),

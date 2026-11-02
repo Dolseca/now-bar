@@ -976,6 +976,7 @@ impl App {
         unsafe { SetTimer(Some(app.main.hwnd), TIMER_BAR_CHECK, BAR_CHECK_MS, None) };
         unsafe { SetTimer(Some(app.main.hwnd), TIMER_WALLPAPER, WALLPAPER_EVERY_MS, None) };
         app.check_wallpaper();
+        crate::activities::system_monitor::start();
         if let Some(old) = follow_exe() {
             log(&format!("autostart: now starts this copy (was {old})"));
         }
@@ -2755,10 +2756,14 @@ impl App {
             status: pill_status(i, now),
             claude: i.claude,
             state: i.state,
-            action: match (i.claude, i.state, i.info.steps.first()) {
-                (true, LiveState::Run, Some(step)) => step_label(step),
-                (true, LiveState::Wait, _) => i.info.ask.as_ref().map(|a| a.detail.clone()).unwrap_or_default(),
-                _ => String::new(),
+            action: if i.id == "nowbar:system-monitor" {
+                i.text.clone()
+            } else {
+                match (i.claude, i.state, i.info.steps.first()) {
+                    (true, LiveState::Run, Some(step)) => step_label(step),
+                    (true, LiveState::Wait, _) => i.info.ask.as_ref().map(|a| a.detail.clone()).unwrap_or_default(),
+                    _ => String::new(),
+                }
             },
         }
     }

@@ -189,6 +189,12 @@ export global Store {
     in-out property <int> display-monitor: 0;
     /// 0 12-hour, 1 24-hour.
     in-out property <int> clock-format: 1;
+    /// System monitor: opt-in, with independent CPU/RAM/GPU metrics.
+    in-out property <bool> performance-on: false;
+    in-out property <bool> performance-cpu: true;
+    in-out property <bool> performance-memory: true;
+    in-out property <bool> performance-gpu: true;
+    in-out property <float> performance-interval: 2;
     in-out property <bool> weather-in-stack: true;
     in-out property <bool> weather-effects: true;
     in-out property <bool> brief-morning: true;
