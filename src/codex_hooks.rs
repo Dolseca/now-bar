@@ -16,7 +16,7 @@ pub const EVENTS: [&str; 14] = [
 ];
 
 fn command(exe: &str) -> String {
-    format!("\\\"{}\\\" codex-hook", exe.replace('"', "\\\\\\""))
+    format!("\"{}\" codex-hook", exe.replace('"', "\\\""))
 }
 
 fn command_exe(command: &str) -> Option<&str> {
@@ -110,7 +110,7 @@ pub fn rewrite(change: impl FnOnce(Value) -> Option<Value>) -> std::io::Result<b
 
 pub fn rewrite_at(path: &std::path::Path, change: impl FnOnce(Value) -> Option<Value>) -> std::io::Result<bool> {
     let text = read_settings(path)?;
-    let current: Value = serde_json::from_str(text.trim_start_matches('\\u{feff}')).map_err(std::io::Error::other)?;
+    let current: Value = serde_json::from_str(text.trim_start_matches('\u{feff}')).map_err(std::io::Error::other)?;
     let Some(next) = change(current) else { return Ok(false) };
     if let Some(dir) = path.parent() { std::fs::create_dir_all(dir)?; }
     let backup = path.with_extension("json.before-nowbar");
@@ -119,7 +119,7 @@ pub fn rewrite_at(path: &std::path::Path, change: impl FnOnce(Value) -> Option<V
     }
     let pretty = serde_json::to_string_pretty(&next).map_err(std::io::Error::other)?;
     let tmp = path.with_extension(format!("json.{}.tmp", std::process::id()));
-    std::fs::write(&tmp, if text.contains("\\r\\n") { pretty.replace('\\n', "\\r\\n") } else { pretty })?;
+    std::fs::write(&tmp, if text.contains("\r\n") { pretty.replace('\n', "\r\n") } else { pretty })?;
     std::fs::rename(&tmp, path)?;
     Ok(true)
 }
